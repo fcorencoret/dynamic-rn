@@ -8,6 +8,8 @@ import math
 from MultiheadAttention import MultiheadAttention
 import pdb
 
+MULTIHEADATTENTION_HEADS = 1
+
 class ConvInputModel(nn.Module):
     def __init__(self):
         super(ConvInputModel, self).__init__()
@@ -63,9 +65,18 @@ class RelationalLayerBase(nn.Module):
     def __init__(self, in_size, out_size, qst_size, hyp):
         super().__init__()
 
+        # f_fc1
         self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
+        self.q_fc1 = nn.Linear(qst_size, hyp["g_layers"][-1])
+        self.mha_fc1 = MultiheadAttention(hyp["g_layers"][-1], MULTIHEADATTENTION_HEADS)
+        # f_fc2
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
+        self.q_fc2 = nn.Linear(qst_size, hyp["f_fc1"])
+        self.mha_fc2 = MultiheadAttention(hyp["f_fc1"], MULTIHEADATTENTION_HEADS)
+        # f_fc3
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
+        self.q_fc3 = nn.Linear(qst_size, hyp["f_fc2"])
+        self.mha_fc3 = MultiheadAttention(hyp["f_fc2"], MULTIHEADATTENTION_HEADS)
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
         
@@ -104,12 +115,12 @@ class RelationalLayer(RelationalLayerBase):
                 #create the h layer. Now, for better code organization, it is part of the g layers pool. 
                 l = nn.Linear(in_s+qst_size, out_s)
                 q = nn.Linear(qst_size, in_s+qst_size)
-                mha = MultiheadAttention(in_s+qst_size, 1)
+                mha = MultiheadAttention(in_s+qst_size, MULTIHEADATTENTION_HEADS)
             else:
                 #create a standard g layer.
                 l = nn.Linear(in_s, out_s)
                 q = nn.Linear(qst_size, in_s)
-                mha = MultiheadAttention(in_s, 1)
+                mha = MultiheadAttention(in_s, MULTIHEADATTENTION_HEADS)
             self.g_layers.append(l)
             self.mha_layers.append(mha)
             self.query_layers.append(q)
@@ -182,13 +193,30 @@ class RelationalLayer(RelationalLayerBase):
         x_g = x_g.sum(1).squeeze(1)
         
         """f"""
+        # f_fc1
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
+        query = self.q_fc1(qst_query)
+        key = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        value = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        _, attn_output_weights = self.mha_fc1(query, key, value)
+        x_f = x_f * attn_output_weights.squeeze(1)
+        # f_fc2
         x_f = self.f_fc2(x_f)
         x_f = self.dropout(x_f)
         x_f = F.relu(x_f)
+        query = self.q_fc2(qst_query)
+        key = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        value = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        _, attn_output_weights = self.mha_fc2(query, key, value)
+        x_f = x_f * attn_output_weights.squeeze(1)
+        # f_fc3
         x_f = self.f_fc3(x_f)
-
+        query = self.q_fc3(qst_query)
+        key = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        value = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        _, attn_output_weights = self.mha_fc3(query, key, value)
+        x_f = x_f * attn_output_weights.squeeze(1)
         return F.log_softmax(x_f, dim=1)
 
 class RN(nn.Module):
