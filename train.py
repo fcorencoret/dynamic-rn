@@ -375,8 +375,8 @@ if __name__ == '__main__':
                         help='input batch size for training (default: 640)')
     parser.add_argument('--test-batch-size', type=int, default=640,
                         help='input batch size for training (default: 640)')
-    parser.add_argument('--epochs', type=int, default=350, metavar='N',
-                        help='number of epochs to train (default: 350)')
+    parser.add_argument('--epochs', type=int, default=500, metavar='N',
+                        help='number of epochs to train (default: 500)')
     parser.add_argument('--lr', type=float, default=0.000005, metavar='LR',
                         help='learning rate (default: 0.000005)')
     parser.add_argument('--clip-norm', type=int, default=50,
