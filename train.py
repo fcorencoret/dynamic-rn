@@ -31,6 +31,8 @@ def train(data, model, optimizer, epoch, args):
 
     avg_loss = 0.0
     n_batches = 0
+    corrects = 0
+    n_samples = 0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions)
@@ -40,6 +42,13 @@ def train(data, model, optimizer, epoch, args):
         output = model(img, qst)
         loss = F.nll_loss(output, label)
         loss.backward()
+
+        # compute global accuracy
+        corrects += (output == label.data).sum()
+        # assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
+        # invalids = sum(class_invalids.values())
+        n_samples += len(label)
+        # assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
 
         # Gradient Clipping
         if args.clip_norm:
@@ -53,12 +62,13 @@ def train(data, model, optimizer, epoch, args):
         n_batches += 1
 
         if batch_idx % args.log_interval == 0:
+            accuracy = corrects/n_samples
             avg_loss /= n_batches
             processed = batch_idx * args.batch_size
             n_samples = len(data) * args.batch_size
             progress = float(processed) / n_samples
-            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {}'.format(
-                epoch, processed, n_samples, progress, avg_loss))
+            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {} Train Accuracy: {}'.format(
+                epoch, processed, n_samples, progress, avg_loss, accuracy))
             avg_loss = 0.0
             n_batches = 0
 
