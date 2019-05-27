@@ -253,6 +253,11 @@ def main(args):
 
     model = RN(args, hyp)
 
+    if args.freeze_RN:
+        for name, param in model.named_parameters():
+            if not name.startswith('rl.q') and not name.startswith('rl.m'):
+                param.requires_grad = False
+
     if torch.cuda.device_count() > 1 and args.cuda:
         model = torch.nn.DataParallel(model)
         model.module.cuda()  # call cuda() overridden method
@@ -273,11 +278,10 @@ def main(args):
             if torch.cuda.device_count() > 1 and not any(k.startswith('module.') for k in checkpoint.keys()):
                 checkpoint = {'module.'+k: v for k,v in checkpoint.items()}
 
-            model.load_state_dict(checkpoint)
+            model.load_state_dict(checkpoint, strict=False)
             print('==> loaded checkpoint {}'.format(filename))
             start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
 
-    
     if args.conv_transfer_learn:
         if os.path.isfile(args.conv_transfer_learn):
             # TODO: there may be problems caused by pytorch issue #3805 if using DataParallel
@@ -385,6 +389,8 @@ if __name__ == '__main__':
                         help='how many batches to wait before logging training status')
     parser.add_argument('--resume', type=str,
                         help='resume from model stored')
+    parser.add_argument('--freeze_RN', type=bool, default=False,
+                        help='freeze RN weights')
     parser.add_argument('--clevr-dir', type=str, default='.',
                         help='base directory of CLEVR dataset')
     parser.add_argument('--model', type=str, default='original-fp',
