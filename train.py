@@ -40,11 +40,12 @@ def train(data, model, optimizer, epoch, args):
         # forward and backward pass
         optimizer.zero_grad()
         output = model(img, qst)
+        pred = output.data.max(1)[1]
         loss = F.nll_loss(output, label)
         loss.backward()
 
         # compute global accuracy
-        corrects += (output == label.data).sum()
+        corrects += (pred == label.data).sum()
         # assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
         # invalids = sum(class_invalids.values())
         n_samples += len(label)
