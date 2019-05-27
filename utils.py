@@ -25,7 +25,7 @@ def build_dictionaries(clevr_dir):
         raise ValueError('Answer {} does not belong to a known class'.format(answer))
         
         
-    cached_dictionaries = os.path.join(clevr_dir, 'questions', 'CLEVR_built_dictionaries.pkl')
+    cached_dictionaries = os.path.join('questions', 'CLEVR_built_dictionaries.pkl')
     if os.path.exists(cached_dictionaries):
         print('==> using cached dictionaries: {}'.format(cached_dictionaries))
         with open(cached_dictionaries, 'rb') as f:
