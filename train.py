@@ -49,6 +49,7 @@ def train(data, model, optimizer, epoch, args):
         # assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
         # invalids = sum(class_invalids.values())
         n_samples += len(label)
+        accuracy = corrects/n_samples
         # assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
 
         # Gradient Clipping
@@ -58,12 +59,11 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss=loss.data[0]))
+        progress_bar.set_postfix(dict(loss=loss.data[0], accuracy = accuracy))
         avg_loss += loss.data[0]
         n_batches += 1
 
         if batch_idx % args.log_interval == 0:
-            accuracy = corrects/n_samples
             avg_loss /= n_batches
             processed = batch_idx * args.batch_size
             n_samples = len(data) * args.batch_size
