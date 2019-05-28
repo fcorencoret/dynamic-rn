@@ -34,7 +34,7 @@ def train(data, model, optimizer, epoch, args):
     corrects = 0
     n_samples = 0
     progress_bar = tqdm(data)
-    for batch_idx, sample_batched in enumerate(progress_bar):
+    for batch_idx, sample_batched in enumerate(progress_bar)[:50]:
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions)
 
         # forward and backward pass
@@ -72,7 +72,8 @@ def train(data, model, optimizer, epoch, args):
                 epoch, processed, n_samples, progress, avg_loss, accuracy))
             avg_loss = 0.0
             n_batches = 0
-    torch.cuda.empty_cache()
+        del img, qst, label
+        torch.cuda.empty_cache()
 
 
 def test(data, model, epoch, dictionaries, args):
@@ -142,6 +143,9 @@ def test(data, model, epoch, dictionaries, args):
             accuracy = corrects / n_samples
             invalids_perc = invalids / n_samples
             progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
+        
+        del img, qst, label
+        torch.cuda.empty_cache()
     
     avg_loss /= len(data)
     invalids_perc = invalids / n_samples      
@@ -168,7 +172,6 @@ def test(data, model, epoch, dictionaries, args):
         'global_accuracy':accuracy
     }
     pickle.dump(dump_object, open(filename,'wb'))
-    torch.cuda.empty_cache()
     return avg_loss
 
 def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description = False):
