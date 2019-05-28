@@ -20,11 +20,11 @@ class ClevrDataset(Dataset):
         """
         if train:
             quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
-            cached_questions = os.path.join('gdrive/Team Drives/Proyecto TAIA/dynamic-rn/questions', 'CLEVR_train_questions.pkl')
+            cached_questions = os.path.join('/content/gdrive/Team Drives/Proyecto TAIA/dynamic-rn/questions', 'CLEVR_train_questions.pkl')
             self.img_dir = os.path.join(clevr_dir, 'images', 'train')
         else:
             quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_val_questions.json')
-            cached_questions = os.path.join('gdrive/Team Drives/Proyecto TAIA/dynamic-rn/questions', 'CLEVR_val_questions.pkl')
+            cached_questions = os.path.join('/content/gdrive/Team Drives/Proyecto TAIA/dynamic-rn/questions', 'CLEVR_val_questions.pkl')
             self.img_dir = os.path.join(clevr_dir, 'images', 'val')
 
         
