@@ -72,6 +72,7 @@ def train(data, model, optimizer, epoch, args):
                 epoch, processed, n_samples, progress, avg_loss, accuracy))
             avg_loss = 0.0
             n_batches = 0
+    torch.cuda.empty_cache()
 
 
 def test(data, model, epoch, dictionaries, args):
@@ -167,6 +168,7 @@ def test(data, model, epoch, dictionaries, args):
         'global_accuracy':accuracy
     }
     pickle.dump(dump_object, open(filename,'wb'))
+    torch.cuda.empty_cache()
     return avg_loss
 
 def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description = False):
