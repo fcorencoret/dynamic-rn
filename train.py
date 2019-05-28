@@ -34,7 +34,9 @@ def train(data, model, optimizer, epoch, args):
     corrects = 0
     n_samples = 0
     progress_bar = tqdm(data)
-    for batch_idx, sample_batched in enumerate(progress_bar)[:50]:
+    for batch_idx, sample_batched in enumerate(progress_bar):
+        if batch_idx == 30:
+            break
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions)
 
         # forward and backward pass
@@ -72,7 +74,7 @@ def train(data, model, optimizer, epoch, args):
                 epoch, processed, n_samples, progress, avg_loss, accuracy))
             avg_loss = 0.0
             n_batches = 0
-        del img, qst, label
+        del img, qst, label, output, pred, loss
         torch.cuda.empty_cache()
 
 
@@ -374,6 +376,7 @@ def main(args):
             # TRAIN
             progress_bar.set_description('TRAIN')
             train(clevr_train_loader, model, optimizer, epoch, args)
+            torch.cuda.empty_cache()
 
             # TEST
             progress_bar.set_description('TEST')

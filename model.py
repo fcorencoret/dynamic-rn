@@ -159,6 +159,7 @@ class RelationalLayer(RelationalLayerBase):
 
         #create g and inject the question at the position pointed by quest_inject_position.
         for idx, (g_layer, mha_layer, q_layer, g_layer_size) in enumerate(zip(self.g_layers, self.mha_layers, self.query_layers, self.g_layers_size)):
+            print(idx)
             if idx==self.quest_inject_position:
                 in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
 
@@ -180,6 +181,8 @@ class RelationalLayer(RelationalLayerBase):
             key = torch.unsqueeze(g_layer.weight, 0).repeat(b, 1, 1).transpose(1, 0)
             value = torch.unsqueeze(g_layer.weight, 0).repeat(b, 1, 1).transpose(1, 0)
             _, attn_output_weights = mha_layer(query, key, value)
+            print(attn_output_weights.shape)
+            print(attn_output_weights)
             attn_output_weights = attn_output_weights.repeat(1, d**2, 1)
             # Apply attn_output_weights to x_
             x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
