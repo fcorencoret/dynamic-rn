@@ -31,8 +31,6 @@ def train(data, model, optimizer, epoch, args):
 
     avg_loss = 0.0
     n_batches = 0
-    corrects = 0
-    n_samples = 0
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions)
@@ -40,17 +38,8 @@ def train(data, model, optimizer, epoch, args):
         # forward and backward pass
         optimizer.zero_grad()
         output = model(img, qst)
-        pred = output.data.max(1)[1]
         loss = F.nll_loss(output, label)
         loss.backward()
-
-        # compute global accuracy
-        corrects += (pred == label.data).sum()
-        # assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
-        # invalids = sum(class_invalids.values())
-        n_samples += len(label)
-        accuracy = corrects/n_samples
-        # assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
 
         # Gradient Clipping
         if args.clip_norm:
@@ -59,7 +48,7 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss=loss.data[0], accuracy = accuracy))
+        progress_bar.set_postfix(dict(loss=loss.data[0]))
         avg_loss += loss.data[0]
         n_batches += 1
 
@@ -68,8 +57,8 @@ def train(data, model, optimizer, epoch, args):
             processed = batch_idx * args.batch_size
             n_samples = len(data) * args.batch_size
             progress = float(processed) / n_samples
-            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {} Train Accuracy: {}'.format(
-                epoch, processed, n_samples, progress, avg_loss, accuracy))
+            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {}'.format(
+                epoch, processed, n_samples, progress, avg_loss))
             avg_loss = 0.0
             n_batches = 0
 
@@ -222,13 +211,14 @@ def main(args):
 
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
-    args.model_dirs = './model_{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
-                      'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}_fc1{}_fc2{}'
-    args.model_dirs = args.model_dirs.format(
-                        args.model, hyp['dropout'], args.batch_size, args.bs_step, args.bs_gamma, 
-                        args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
-                        args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'],
-                        hyp['f_fc1'], hyp['f_fc2'])
+    # args.model_dirs = './model_{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
+    #                   'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}_fc1{}_fc2{}'
+    # args.model_dirs = args.model_dirs.format(
+    #                     args.model, hyp['dropout'], args.batch_size, args.bs_step, args.bs_gamma, 
+    #                     args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
+    #                     args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'],
+    #                     hyp['f_fc1'], hyp['f_fc2'])
+    args.model_dirs = 'gdrive/Team Drives/Proyecto TAIA/dynamic-rn'
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)
     #create a file in this folder containing the overall configuration
@@ -239,8 +229,8 @@ def main(args):
     with open(filename,'w') as config_file:
         config_file.write(all_configuration)
 
-    args.features_dirs = './features'
-    args.test_results_dir = './test_results'
+    args.features_dirs = 'gdrive/Team Drives/Proyecto TAIA/dynamic-rn/features'
+    args.test_results_dir = 'gdrive/Team Drives/Proyecto TAIA/dynamic-rn/test_results'
     if not os.path.exists(args.test_results_dir):
         os.makedirs(args.test_results_dir)
 
@@ -347,6 +337,7 @@ def main(args):
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
         scheduler.last_epoch = start_epoch
         print('Training ({} epochs) is starting...'.format(args.epochs))
+        first = True
         for epoch in progress_bar:
             
             if(((args.bs_max > 0 and bs < args.bs_max) or args.bs_max < 0 ) and (epoch % args.bs_step == 0 or epoch == start_epoch)):
@@ -366,6 +357,10 @@ def main(args):
                     
             print('Current learning rate: {}'.format(optimizer.param_groups[0]['lr']))
                 
+            if first:
+                filename = 'RN_epoch_{:02d}.pth'.format(epoch)
+                torch.save(model.state_dict(), os.path.join(args.model_dirs, filename))
+                first = False
             # TRAIN
             progress_bar.set_description('TRAIN')
             train(clevr_train_loader, model, optimizer, epoch, args)
