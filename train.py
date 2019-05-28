@@ -76,6 +76,7 @@ def train(data, model, optimizer, epoch, args):
             n_batches = 0
         del img, qst, label, output, pred, loss
         torch.cuda.empty_cache()
+    optimizer.zero_grad()
 
 
 def test(data, model, epoch, dictionaries, args):
