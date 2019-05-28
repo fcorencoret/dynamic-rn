@@ -113,7 +113,7 @@ def test(data, model, epoch, dictionaries, args):
     progress_bar = tqdm(data)
     for batch_idx, sample_batched in enumerate(progress_bar):
         img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
-        
+        print(qst)
         output = model(img, qst)
         pred = output.data.max(1)[1]
 
