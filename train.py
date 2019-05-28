@@ -22,7 +22,7 @@ from tqdm import tqdm, trange
 import utils
 import math
 from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
-from model import RN
+from model2 import RN
 
 import pdb
 
@@ -49,7 +49,7 @@ def train(data, model, optimizer, epoch, args):
         # assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
         # invalids = sum(class_invalids.values())
         n_samples += len(label)
-        accuracy = corrects/n_samples
+        accuracy = corrects / n_samples
         # assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
 
         # Gradient Clipping
@@ -59,17 +59,17 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss=loss.data[0], accuracy = accuracy))
+        progress_bar.set_postfix(dict(loss=loss.data[0], acc='{:.2%}'.format(accuracy)))
         avg_loss += loss.data[0]
         n_batches += 1
 
         if batch_idx % args.log_interval == 0:
             avg_loss /= n_batches
             processed = batch_idx * args.batch_size
-            n_samples = len(data) * args.batch_size
-            progress = float(processed) / n_samples
+            total_n_samples = len(data) * args.batch_size
+            progress = float(processed) / total_n_samples
             print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {} Train Accuracy: {}'.format(
-                epoch, processed, n_samples, progress, avg_loss, accuracy))
+                epoch, processed, total_n_samples, progress, avg_loss, accuracy))
             avg_loss = 0.0
             n_batches = 0
     torch.cuda.empty_cache()
