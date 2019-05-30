@@ -12,6 +12,9 @@ import matplotlib
                 # i.e. the one delimited in parenthesis
                 # inside the pattern (...)
                 yield match.group(1)'''
+def filter_bad_string(x):
+    return not '[A' in x[1] 
+
 
 def parse_log(log, pattern):
     with open(log, 'r') as log_file:
@@ -24,7 +27,7 @@ def parse_log(log, pattern):
                 yield i, match.group(1)
 
 def plot_train_loss(args):
-    losses = [(10*n,float(i)) for n,i in parse_log(args.log_file, r'Train loss: (.*)')]
+    losses = [(10*n,float(i)) for n,i in parse_log(args.log_file, 'Train loss: (.*) Train Accuracy: ')]
     plt.clf()
     it, losses = zip(*losses)
     plt.plot(it, losses)
@@ -40,7 +43,7 @@ def plot_train_loss(args):
         plt.show()
 
 def plot_test_loss(args):
-    losses = [float(i) for _,i in parse_log(args.log_file, r'Test loss = (.*)')]
+    losses = [float(i) for _,i in parse_log(args.log_file, 'Test loss = (.*)')]
     plt.clf()
     plt.plot(losses)
     plt.title('Test Loss')
