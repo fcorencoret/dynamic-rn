@@ -67,16 +67,16 @@ class RelationalLayerBase(nn.Module):
 
         # f_fc1
         self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
-        # self.q_fc1 = nn.Linear(qst_size, hyp["g_layers"][-1])
-        # self.mha_fc1 = MultiheadAttention(hyp["g_layers"][-1], MULTIHEADATTENTION_HEADS)
+        self.q_fc1 = nn.Linear(qst_size, hyp["g_layers"][-1])
+        self.mha_fc1 = MultiheadAttention(hyp["g_layers"][-1], MULTIHEADATTENTION_HEADS)
         # f_fc2
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
-        # self.q_fc2 = nn.Linear(qst_size, hyp["f_fc1"])
-        # self.mha_fc2 = MultiheadAttention(hyp["f_fc1"], MULTIHEADATTENTION_HEADS)
+        self.q_fc2 = nn.Linear(qst_size, hyp["f_fc1"])
+        self.mha_fc2 = MultiheadAttention(hyp["f_fc1"], MULTIHEADATTENTION_HEADS)
         # f_fc3
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
-        # self.q_fc3 = nn.Linear(qst_size, hyp["f_fc2"])
-        # self.mha_fc3 = MultiheadAttention(hyp["f_fc2"], MULTIHEADATTENTION_HEADS)
+        self.q_fc3 = nn.Linear(qst_size, hyp["f_fc2"])
+        self.mha_fc3 = MultiheadAttention(hyp["f_fc2"], MULTIHEADATTENTION_HEADS)
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
         
@@ -196,27 +196,27 @@ class RelationalLayer(RelationalLayerBase):
         # f_fc1
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
-        # query = self.q_fc1(qst_query)
-        # key = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        # value = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        # _, attn_output_weights = self.mha_fc1(query, key, value)
-        # x_f = x_f * attn_output_weights.squeeze(1)
+        query = self.q_fc1(qst_query)
+        key = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        value = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        _, attn_output_weights = self.mha_fc1(query, key, value)
+        x_f = x_f * attn_output_weights.squeeze(1)
         # f_fc2
         x_f = self.f_fc2(x_f)
         x_f = self.dropout(x_f)
         x_f = F.relu(x_f)
-        # query = self.q_fc2(qst_query)
-        # key = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        # value = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        # _, attn_output_weights = self.mha_fc2(query, key, value)
-        # x_f = x_f * attn_output_weights.squeeze(1)
+        query = self.q_fc2(qst_query)
+        key = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        value = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        _, attn_output_weights = self.mha_fc2(query, key, value)
+        x_f = x_f * attn_output_weights.squeeze(1)
         # f_fc3
         x_f = self.f_fc3(x_f)
-        # query = self.q_fc3(qst_query)
-        # key = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        # value = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        # _, attn_output_weights = self.mha_fc3(query, key, value)
-        # x_f = x_f * attn_output_weights.squeeze(1)
+        query = self.q_fc3(qst_query)
+        key = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        value = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        _, attn_output_weights = self.mha_fc3(query, key, value)
+        x_f = x_f * attn_output_weights.squeeze(1)
         return F.log_softmax(x_f, dim=1)
 
 class RN(nn.Module):

@@ -343,7 +343,7 @@ def main(args):
         #TODO: find a better solution for general lr scheduling policies
         candidate_lr = args.lr * args.lr_gamma ** (start_epoch-1 // args.lr_step)
         lr = candidate_lr if candidate_lr <= args.lr_max else args.lr_max
-
+        # lr = 0.005
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, weight_decay=1e-4)
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)

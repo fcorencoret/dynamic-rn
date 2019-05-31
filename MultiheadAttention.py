@@ -185,7 +185,8 @@ class MultiheadAttention(nn.Module):
             )
             attn_output_weights = attn_output_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
-        attn_output_weights = F.sigmoid(attn_output_weights.float())
+        # TEMP: Added 1 to 
+        attn_output_weights = F.sigmoid(attn_output_weights.float() + 1)
         attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
 
         attn_output = torch.bmm(attn_output_weights, v)

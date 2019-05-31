@@ -103,6 +103,8 @@ def plot_invalids(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Plot RN training logs')
     parser.add_argument('log_file', type=str, help='Log file to plot')
+    parser.add_argument('--img-dir', type=str, default='imgs/',
+                        help='path to save images')
     parser.add_argument('-trl', '--train-loss', action='store_true', help='Show training loss plot')
     parser.add_argument('-tsl', '--test-loss', action='store_true', help='Show test loss plot')
     parser.add_argument('-a', '--accuracy', action='store_true', help='Show accuracy plot')
@@ -112,17 +114,18 @@ if __name__ == '__main__':
                         help='upper bound for y axis of loss plots (0 to leave default)')
     parser.add_argument('--y-min', type=float, default=0,
                         help='lower bound for y axis of loss plots (0 to leave default)')
+
     args = parser.parse_args()
     
-    img_dir = 'imgs/'
-    args.img_dir = img_dir
+    # img_dir = 'imgs/'
+    # args.img_dir = img_dir
 
     if args.no_show:
         matplotlib.use('Agg')    
     import matplotlib.pyplot as plt
 
-    if not os.path.exists(img_dir):
-        os.makedirs(img_dir)
+    if not os.path.exists(args.img_dir):
+        os.makedirs(args.img_dir)
 
     if args.train_loss:
       plot_train_loss(args)
