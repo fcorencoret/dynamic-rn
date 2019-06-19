@@ -67,15 +67,12 @@ class RelationalLayerBase(nn.Module):
 
         # f_fc1
         self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
-        self.q_fc1 = nn.Linear(qst_size, hyp["g_layers"][-1])
         self.mha_fc1 = MultiheadAttention(hyp["g_layers"][-1], MULTIHEADATTENTION_HEADS)
         # f_fc2
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
-        self.q_fc2 = nn.Linear(qst_size, hyp["f_fc1"])
         self.mha_fc2 = MultiheadAttention(hyp["f_fc1"], MULTIHEADATTENTION_HEADS)
         # f_fc3
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
-        self.q_fc3 = nn.Linear(qst_size, hyp["f_fc2"])
         self.mha_fc3 = MultiheadAttention(hyp["f_fc2"], MULTIHEADATTENTION_HEADS)
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
@@ -105,30 +102,24 @@ class RelationalLayer(RelationalLayerBase):
         #create all multiheadattention layers
         self.mha_layers = []
 
-        #create all query projection layers
-        self.query_layers = []
-
         for idx,g_layer_size in enumerate(hyp["g_layers"]):
             in_s = in_size if idx==0 else hyp["g_layers"][idx-1]
             out_s = g_layer_size
             if idx==self.quest_inject_position:
                 #create the h layer. Now, for better code organization, it is part of the g layers pool. 
                 l = nn.Linear(in_s+qst_size, out_s)
-                q = nn.Linear(qst_size, in_s+qst_size)
                 mha = MultiheadAttention(in_s+qst_size, MULTIHEADATTENTION_HEADS)
             else:
                 #create a standard g layer.
                 l = nn.Linear(in_s, out_s)
-                q = nn.Linear(qst_size, in_s)
                 mha = MultiheadAttention(in_s, MULTIHEADATTENTION_HEADS)
             self.g_layers.append(l)
             self.mha_layers.append(mha)
-            self.query_layers.append(q)
 
 
         self.g_layers = nn.ModuleList(self.g_layers)
         self.mha_layers = nn.ModuleList(self.mha_layers)
-        self.query_layers = nn.ModuleList(self.query_layers)
+        self.query_layer = nn.Linear(qst_size, in_s)
         self.extraction = extraction
     
     def forward(self, x, qst):
@@ -141,6 +132,7 @@ class RelationalLayer(RelationalLayerBase):
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
         qst_query = qst.clone().transpose(1, 0)
+        query = self.query_layer(qst_query)
         qst = qst.repeat(1, d, 1)                       # (B x 64 x 128)
         qst = torch.unsqueeze(qst, 2)                      # (B x 64 x 1 x 128)
         
@@ -158,7 +150,7 @@ class RelationalLayer(RelationalLayerBase):
         x_ = x_full.view(b * d**2, self.in_size)
 
         #create g and inject the question at the position pointed by quest_inject_position.
-        for idx, (g_layer, mha_layer, q_layer, g_layer_size) in enumerate(zip(self.g_layers, self.mha_layers, self.query_layers, self.g_layers_size)):
+        for idx, (g_layer, mha_layer, g_layer_size) in enumerate(zip(self.g_layers, self.mha_layers, self.g_layers_size)):
             if idx==self.quest_inject_position:
                 in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
 
@@ -174,16 +166,13 @@ class RelationalLayer(RelationalLayerBase):
             else:
                 x_ = g_layer(x_)
                 x_ = F.relu(x_)
-
-            # Pass through multiheadattention layer
-            query = q_layer(qst_query)
-            key = torch.unsqueeze(g_layer.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-            value = torch.unsqueeze(g_layer.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-            _, attn_output_weights = mha_layer(query, key, value)
-            attn_output_weights = attn_output_weights.repeat(1, d**2, 1)
-            # Apply attn_output_weights to x_
-            x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
-            x_ = x_.view(b * (d ** 2), g_layer_size)
+                # Pass through multiheadattention layer
+                weights = torch.unsqueeze(g_layer.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+                _, attn_output_weights = mha_layer(query, weights, weights)
+                attn_output_weights = attn_output_weights.repeat(1, d**2, 1)
+                # Apply attn_output_weights to x_
+                x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
+                x_ = x_.view(b * (d ** 2), g_layer_size)
 
         if self.extraction:
             return None
@@ -196,26 +185,20 @@ class RelationalLayer(RelationalLayerBase):
         # f_fc1
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
-        query = self.q_fc1(qst_query)
-        key = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        value = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        _, attn_output_weights = self.mha_fc1(query, key, value)
+        weights = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        _, attn_output_weights = self.mha_fc1(query, weights, weights)
         x_f = x_f * attn_output_weights.squeeze(1)
         # f_fc2
         x_f = self.f_fc2(x_f)
         x_f = self.dropout(x_f)
         x_f = F.relu(x_f)
-        query = self.q_fc2(qst_query)
-        key = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        value = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        _, attn_output_weights = self.mha_fc2(query, key, value)
+        weights = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        _, attn_output_weights = self.mha_fc2(query, weights, weights)
         x_f = x_f * attn_output_weights.squeeze(1)
         # f_fc3
         x_f = self.f_fc3(x_f)
-        query = self.q_fc3(qst_query)
-        key = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        value = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        _, attn_output_weights = self.mha_fc3(query, key, value)
+        weights = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+        _, attn_output_weights = self.mha_fc3(query, weights, weights)
         x_f = x_f * attn_output_weights.squeeze(1)
         return F.log_softmax(x_f, dim=1)
 

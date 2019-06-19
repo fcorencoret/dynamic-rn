@@ -60,6 +60,7 @@ class MultiheadAttention(nn.Module):
         xavier_uniform(self.out_proj.weight)
         if self.in_proj_bias is not None:
             constant(self.in_proj_bias, 0.)
+            constant(self.in_proj_bias[:(self.embed_dim * 2)], 0.8)
             constant(self.out_proj.bias, 0.)
         if self.bias_k is not None:
             xavier_normal(self.bias_k)
@@ -185,8 +186,7 @@ class MultiheadAttention(nn.Module):
             )
             attn_output_weights = attn_output_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
-        # TEMP: Added 1 to 
-        attn_output_weights = F.sigmoid(attn_output_weights.float() + 1)
+        attn_output_weights = F.sigmoid(attn_output_weights.float())
         attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
 
         attn_output = torch.bmm(attn_output_weights, v)

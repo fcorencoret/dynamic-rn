@@ -59,7 +59,7 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss=loss.data[0], acc='{:.2%}'.format(accuracy)))
+        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.data[0]), acc='{:.2%}'.format(accuracy)))
         avg_loss += loss.data[0]
         n_batches += 1
 
@@ -156,8 +156,6 @@ def test(data, model, epoch, dictionaries, args):
             invalid = class_invalids[v] / class_n_samples[v]
         print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
 
-    # dump results on file
-    filename = os.path.join(args.test_results_dir, 'test.pickle')
     dump_object = {
         'class_corrects':class_corrects,
         'class_invalids':class_invalids,
@@ -167,9 +165,8 @@ def test(data, model, epoch, dictionaries, args):
         'confusion_matrix_labels':sorted_labels,
         'global_accuracy':accuracy
     }
-    pickle.dump(dump_object, open(filename,'wb'))
     torch.cuda.empty_cache()
-    return avg_loss
+    return avg_loss, dump_object
 
 def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description = False):
     if not state_description:
@@ -224,13 +221,7 @@ def main(args):
 
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
-    args.model_dirs = './model_{}_{}_drop{}_bstart{}_bstep{}_bgamma{}_bmax{}_lrstart{}_'+ \
-                      'lrstep{}_lrgamma{}_lrmax{}_invquests-{}_clipnorm{}_glayers{}_qinj{}_fc1{}_fc2{}'
-    args.model_dirs = args.model_dirs.format(
-                        args.model, args.experiment, hyp['dropout'], args.batch_size, args.bs_step, args.bs_gamma, 
-                        args.bs_max, args.lr, args.lr_step, args.lr_gamma, args.lr_max,
-                        args.invert_questions, args.clip_norm, hyp['g_layers'], hyp['question_injection_position'],
-                        hyp['f_fc1'], hyp['f_fc2'])
+    args.model_dirs = args.experiment
     if not os.path.exists(args.model_dirs):
         os.makedirs(args.model_dirs)
     #create a file in this folder containing the overall configuration
@@ -242,9 +233,9 @@ def main(args):
         config_file.write(all_configuration)
 
     args.features_dirs = './features'
-    args.test_results_dir = './test_results'
-    if not os.path.exists(args.test_results_dir):
-        os.makedirs(args.test_results_dir)
+    args.test_results_dir = args.experiment
+    # if not os.path.exists(args.test_results_dir):
+        # os.makedirs(args.test_results_dir)
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -268,6 +259,7 @@ def main(args):
 
     if args.freeze_RN:
         for name, param in model.named_parameters():
+            print(name)
             if not name.startswith('rl.q') and not name.startswith('rl.m'):
                 param.requires_grad = False
 
@@ -348,6 +340,7 @@ def main(args):
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
         scheduler.last_epoch = start_epoch
+        best_loss = float('inf')
         print('Training ({} epochs) is starting...'.format(args.epochs))
         for epoch in progress_bar:
             
@@ -374,11 +367,17 @@ def main(args):
 
             # TEST
             progress_bar.set_description('TEST')
-            test(clevr_test_loader, model, epoch, dictionaries, args)
+            test_loss, results = test(clevr_test_loader, model, epoch, dictionaries, args)
 
-            # SAVE MODEL
-            filename = 'RN_epoch_{:02d}.pth'.format(epoch)
-            torch.save(model.state_dict(), os.path.join(args.model_dirs, filename))
+            if test_loss < best_loss:
+                print('Saving weights for epoch {}'.format(epoch))
+                # SAVE MODEL
+                weights_filename = os.path.join(args.model_dirs, 'best_weights.pth')
+                torch.save(model.state_dict(), weights_filename)
+                # dump results on file
+                results_filename = os.path.join(args.model_dirs, 'test_{:02d}.pickle'.format(epoch))
+                pickle.dump(results, open(results_filename,'wb'))
+                best_loss = test_loss
 
 
 if __name__ == '__main__':
@@ -408,7 +407,7 @@ if __name__ == '__main__':
                         help='base directory of CLEVR dataset')
     parser.add_argument('--model', type=str, default='original-fp',
                         help='which model is used to train the network')
-    parser.add_argument('--experiment', type=str, default='',
+    parser.add_argument('--experiment', type=str, default='pruebas',
                         help='experiment name')
     parser.add_argument('--no-invert-questions', action='store_true', default=False,
                         help='invert the question word indexes for LSTM processing')
