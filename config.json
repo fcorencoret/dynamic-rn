@@ -10,7 +10,7 @@
 	            "f_fc2": 256,
 	            
 	            "dropout": 0.5,
-	            "lstm_hidden": 128,
+	            "lstm_hidden": 256,
 	            "lstm_word_emb": 32,
 	            "rl_in_size": 52
 	        },

@@ -119,7 +119,6 @@ class RelationalLayer(RelationalLayerBase):
 
         self.g_layers = nn.ModuleList(self.g_layers)
         self.mha_layers = nn.ModuleList(self.mha_layers)
-        self.query_layer = nn.Linear(qst_size, in_s)
         self.extraction = extraction
     
     def forward(self, x, qst):
@@ -131,8 +130,7 @@ class RelationalLayer(RelationalLayerBase):
         
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
-        qst_query = qst.clone().transpose(1, 0)
-        query = self.query_layer(qst_query)
+        query = qst.clone().transpose(1, 0)
         qst = qst.repeat(1, d, 1)                       # (B x 64 x 128)
         qst = torch.unsqueeze(qst, 2)                      # (B x 64 x 1 x 128)
         
