@@ -35,16 +35,16 @@ class MultiheadAttention(nn.Module):
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
 
-        self.in_proj_weight = Parameter(torch.randn(3 * embed_dim, embed_dim)).cuda()
+        self.in_proj_weight = Parameter(torch.randn(3 * embed_dim, embed_dim))
         if bias:
-            self.in_proj_bias = Parameter(torch.randn(3 * embed_dim)).cuda()
+            self.in_proj_bias = Parameter(torch.randn(3 * embed_dim))
         else:
             self.register_parameter('in_proj_bias', None)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         if add_bias_kv:
-            self.bias_k = Parameter(torch.randn(1, 1, embed_dim)).cuda()
-            self.bias_v = Parameter(torch.randn(1, 1, embed_dim)).cuda()
+            self.bias_k = Parameter(torch.randn(1, 1, embed_dim))
+            self.bias_v = Parameter(torch.randn(1, 1, embed_dim))
         else:
             self.bias_k = self.bias_v = None
 
