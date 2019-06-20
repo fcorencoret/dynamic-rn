@@ -273,6 +273,7 @@ def main(args):
     start_epoch = 1
     if args.resume:
         filename = args.resume
+        filename = os.path.join(filename, 'best_weights.pth')
         if os.path.isfile(filename):
             print('==> loading checkpoint {}'.format(filename))
             checkpoint = torch.load(filename)
@@ -337,10 +338,16 @@ def main(args):
         lr = candidate_lr if candidate_lr <= args.lr_max else args.lr_max
         # lr = 0.005
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, weight_decay=1e-4)
+        if args.resume: 
+            filename = os.path.join(args.resume, 'best_optimizer.pth')
+            checkpoint = torch.load(filename)
+            optimizer.load_state_dict(checkpoint, strict=False)
+            print('==> loaded checkpoint {}'.format(filename))
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
         scheduler.last_epoch = start_epoch
         best_loss = float('inf')
+        best_epoch = float('inf')
         print('Training ({} epochs) is starting...'.format(args.epochs))
         for epoch in progress_bar:
             
@@ -371,13 +378,16 @@ def main(args):
 
             if test_loss < best_loss:
                 print('Saving weights for epoch {}'.format(epoch))
-                # SAVE MODEL
+                # SAVE MODEL AND OPTIMIZER
                 weights_filename = os.path.join(args.model_dirs, 'best_weights.pth')
                 torch.save(model.state_dict(), weights_filename)
+                optimizer_filename = os.path.join(args.model_dirs, 'best_optimizer.pth')
+                torch.save(optimizer.state_dict(), optimizer_filename)
                 # dump results on file
-                results_filename = os.path.join(args.model_dirs, 'test_{:02d}.pickle'.format(epoch))
+                results_filename = os.path.join(args.model_dirs, 'test.pickle')
                 pickle.dump(results, open(results_filename,'wb'))
                 best_loss = test_loss
+                best_epoch = epoch
 
 
 if __name__ == '__main__':
