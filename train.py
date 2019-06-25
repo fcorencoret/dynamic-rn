@@ -238,7 +238,6 @@ def main(args):
         # os.makedirs(args.test_results_dir)
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
-
     torch.manual_seed(args.seed)
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
@@ -263,8 +262,9 @@ def main(args):
             if not name.startswith('rl.q') and not name.startswith('rl.m'):
                 param.requires_grad = False
 
+    model = torch.nn.DataParallel(model)
     if torch.cuda.device_count() > 1 and args.cuda:
-        model = torch.nn.DataParallel(model)
+        
         model.module.cuda()  # call cuda() overridden method
 
     if args.cuda:
@@ -275,7 +275,7 @@ def main(args):
         filename = args.resume
         if os.path.isfile(filename):
             print('==> loading checkpoint {}'.format(filename))
-            checkpoint = torch.load(filename)
+            checkpoint = torch.load(filename, map_location='cpu')
 
             #removes 'module' from dict entries, pytorch bug #3805
             if torch.cuda.device_count() == 1 and any(k.startswith('module.') for k in checkpoint.keys()):
@@ -337,10 +337,16 @@ def main(args):
         lr = candidate_lr if candidate_lr <= args.lr_max else args.lr_max
         # lr = 0.005
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, weight_decay=1e-4)
+        if args.resume_optimizer: 
+            filename = args.resume_optimizer
+            checkpoint = torch.load(filename)
+            optimizer.load_state_dict(checkpoint, strict=False)
+            print('==> loaded checkpoint {}'.format(filename))
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
         scheduler.last_epoch = start_epoch
         best_loss = float('inf')
+        best_epoch = float('inf')
         print('Training ({} epochs) is starting...'.format(args.epochs))
         for epoch in progress_bar:
             
@@ -371,13 +377,16 @@ def main(args):
 
             if test_loss < best_loss:
                 print('Saving weights for epoch {}'.format(epoch))
-                # SAVE MODEL
-                weights_filename = os.path.join(args.model_dirs, 'best_weights.pth')
+                # SAVE MODEL AND OPTIMIZER
+                weights_filename = os.path.join(args.model_dirs, 'best_weights_epoch_{}.pth'.format(epoch))
                 torch.save(model.state_dict(), weights_filename)
+                optimizer_filename = os.path.join(args.model_dirs, 'best_optimizer_epoch_{}.pth'.format(epoch))
+                torch.save(optimizer.state_dict(), optimizer_filename)
                 # dump results on file
-                results_filename = os.path.join(args.model_dirs, 'test_{:02d}.pickle'.format(epoch))
+                results_filename = os.path.join(args.model_dirs, 'test_epoch_{}.pickle'.format(epoch))
                 pickle.dump(results, open(results_filename,'wb'))
                 best_loss = test_loss
+                best_epoch = epoch
 
 
 if __name__ == '__main__':
@@ -401,6 +410,8 @@ if __name__ == '__main__':
                         help='how many batches to wait before logging training status')
     parser.add_argument('--resume', type=str,
                         help='resume from model stored')
+    parser.add_argument('--resume_optimizer', type=str,
+                        help='resume from optimizer stored')
     parser.add_argument('--freeze_RN', type=bool, default=False,
                         help='freeze RN weights')
     parser.add_argument('--clevr-dir', type=str, default='.',
