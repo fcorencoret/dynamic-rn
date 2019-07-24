@@ -59,8 +59,8 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.data[0]), acc='{:.2%}'.format(accuracy)))
-        avg_loss += loss.data[0]
+        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.item()), acc='{:.2%}'.format(accuracy)))
+        avg_loss += loss.item()
         n_batches += 1
 
         if batch_idx % args.log_interval == 0:
@@ -136,7 +136,7 @@ def test(data, model, epoch, dictionaries, args):
         n_samples += len(label)
         assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
         
-        avg_loss += loss.data[0]
+        avg_loss += loss.item()
 
         if batch_idx % args.log_interval == 0:
             accuracy = corrects / n_samples
@@ -262,9 +262,8 @@ def main(args):
             if not name.startswith('rl.q') and not name.startswith('rl.m'):
                 param.requires_grad = False
 
-    model = torch.nn.DataParallel(model)
     if torch.cuda.device_count() > 1 and args.cuda:
-        
+        model = torch.nn.DataParallel(model)        
         model.module.cuda()  # call cuda() overridden method
 
     if args.cuda:
@@ -275,7 +274,7 @@ def main(args):
         filename = args.resume
         if os.path.isfile(filename):
             print('==> loading checkpoint {}'.format(filename))
-            checkpoint = torch.load(filename, map_location='cpu')
+            checkpoint = torch.load(filename)
 
             #removes 'module' from dict entries, pytorch bug #3805
             if torch.cuda.device_count() == 1 and any(k.startswith('module.') for k in checkpoint.keys()):
@@ -340,8 +339,8 @@ def main(args):
         if args.resume_optimizer: 
             filename = args.resume_optimizer
             checkpoint = torch.load(filename)
-            optimizer.load_state_dict(checkpoint, strict=False)
-            print('==> loaded checkpoint {}'.format(filename))
+            optimizer.load_state_dict(checkpoint)
+            print('==> loaded optimizer {}'.format(filename))
         # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, min_lr=1e-6, verbose=True)
         scheduler = lr_scheduler.StepLR(optimizer, args.lr_step, gamma=args.lr_gamma)
         scheduler.last_epoch = start_epoch

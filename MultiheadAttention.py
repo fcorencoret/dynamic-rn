@@ -1,7 +1,7 @@
 import torch
-from torch.nn.init import xavier_uniform
-from torch.nn.init import constant
-from torch.nn.init import xavier_normal
+from torch.nn.init import xavier_uniform_
+from torch.nn.init import constant_
+from torch.nn.init import xavier_normal_
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 import torch.nn as nn
@@ -53,18 +53,18 @@ class MultiheadAttention(nn.Module):
         self._reset_parameters()
 
     def _reset_parameters(self):
-        xavier_uniform(self.in_proj_weight[:self.embed_dim, :])
-        xavier_uniform(self.in_proj_weight[self.embed_dim:(self.embed_dim * 2), :])
-        xavier_uniform(self.in_proj_weight[(self.embed_dim * 2):, :])
+        xavier_uniform_(self.in_proj_weight[:self.embed_dim, :])
+        xavier_uniform_(self.in_proj_weight[self.embed_dim:(self.embed_dim * 2), :])
+        xavier_uniform_(self.in_proj_weight[(self.embed_dim * 2):, :])
 
-        xavier_uniform(self.out_proj.weight)
+        xavier_uniform_(self.out_proj.weight)
         if self.in_proj_bias is not None:
-            constant(self.in_proj_bias, 0.)
-            constant(self.out_proj.bias, 0.)
+            constant_(self.in_proj_bias, 0.)
+            constant_(self.out_proj.bias, 0.)
         if self.bias_k is not None:
-            xavier_normal(self.bias_k)
+            xavier_normal_(self.bias_k)
         if self.bias_v is not None:
-            xavier_normal(self.bias_v)
+            xavier_normal_(self.bias_v)
 
     # @weak_script_method
     def forward(self, query, key, value, key_padding_mask=None, incremental_state=None,
@@ -185,7 +185,7 @@ class MultiheadAttention(nn.Module):
             )
             attn_output_weights = attn_output_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
-        attn_output_weights = F.sigmoid(attn_output_weights.float())
+        attn_output_weights = torch.sigmoid(attn_output_weights.float())
         attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
 
         attn_output = torch.bmm(attn_output_weights, v)

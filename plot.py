@@ -2,6 +2,7 @@ import re
 import argparse
 import os
 import matplotlib
+matplotlib.use('Agg')
 
 '''def parse_log(log, pattern):
     with open(log, 'r') as log_file:
@@ -60,21 +61,30 @@ def plot_test_loss(args):
 
 def plot_accuracy(args):
     accuracy = [float(i) for _,i in parse_log(args.log_file, r'.* Accuracy = (\d+\.\d+)%')]
-    details = ['exist', 'number', 'material', 'size', 'shape', 'color']
+    details = ['material', 'color', 'size', 'number', 'exist', 'shape']
+    details_colors = {'exist':'purple', 
+                    'number': 'red',
+                    'material':'blue',
+                    'size': 'green',
+                    'shape': 'brown', 
+                    'color': 'orange'}
     
     accs = {k: [float(i) for _,i in parse_log(args.log_file, '{} -- acc: (\d+\.\d+)%'.format(k))]
             for k in details}
     
     plt.clf()
-    for k, v in accs.items():
-        plt.plot(v, label=k)
+    for k in details:
+        plt.plot(accs[k], label=k, color=details_colors[k])
 
-    plt.plot(accuracy, linewidth=2, label='total')
+    plt.plot(accuracy, linewidth=2, label='total', color='fuchsia')
     plt.legend(loc='best')
     plt.title('Accuracy')
     plt.xlabel('Epoch')
+    plt.xlim(-20, 370)
+    plt.ylim(-5, 102)
     plt.ylabel('%')
     plt.grid()
+    plt.legend(loc='lower right')
     plt.savefig(os.path.join(args.img_dir, 'accuracy.png'))
     if not args.no_show:
         plt.show()
