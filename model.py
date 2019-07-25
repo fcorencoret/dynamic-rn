@@ -127,6 +127,7 @@ class RelationalLayer(RelationalLayerBase):
         """g"""
         b, d, k = x.size()
         qst_size = qst.size()[1]
+        l1_reg = 0
         
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
@@ -167,6 +168,7 @@ class RelationalLayer(RelationalLayerBase):
                 # Pass through multiheadattention layer
                 weights = torch.unsqueeze(g_layer.weight, 0).repeat(b, 1, 1).transpose(1, 0)
                 _, attn_output_weights = mha_layer(query, weights, weights)
+                l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
                 attn_output_weights = attn_output_weights.repeat(1, d**2, 1)
                 # Apply attn_output_weights to x_
                 x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
@@ -185,6 +187,7 @@ class RelationalLayer(RelationalLayerBase):
         x_f = F.relu(x_f)
         weights = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
         _, attn_output_weights = self.mha_fc1(query, weights, weights)
+        l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
         x_f = x_f * attn_output_weights.squeeze(1)
         # f_fc2
         x_f = self.f_fc2(x_f)
@@ -192,13 +195,15 @@ class RelationalLayer(RelationalLayerBase):
         x_f = F.relu(x_f)
         weights = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
         _, attn_output_weights = self.mha_fc2(query, weights, weights)
+        l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
         x_f = x_f * attn_output_weights.squeeze(1)
         # f_fc3
         x_f = self.f_fc3(x_f)
         weights = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
         _, attn_output_weights = self.mha_fc3(query, weights, weights)
+        l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
         x_f = x_f * attn_output_weights.squeeze(1)
-        return F.log_softmax(x_f, dim=1)
+        return F.log_softmax(x_f, dim=1), l1_reg 
 
 class RN(nn.Module):
     def __init__(self, args, hyp, extraction=False):

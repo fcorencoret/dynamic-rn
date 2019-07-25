@@ -49,7 +49,8 @@ class ClevrDataset(Dataset):
         return weights
     
     def __len__(self):
-        return len(self.questions)
+        # return len(self.questions)
+        return 10
 
     def __getitem__(self, idx):
         current_question = self.questions[idx]

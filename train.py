@@ -14,7 +14,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim import lr_scheduler
-from torch.nn.utils import clip_grad_norm
+from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm, trange
@@ -39,9 +39,9 @@ def train(data, model, optimizer, epoch, args):
 
         # forward and backward pass
         optimizer.zero_grad()
-        output = model(img, qst)
+        output, l1_reg = model(img, qst)
         pred = output.data.max(1)[1]
-        loss = F.nll_loss(output, label)
+        loss = F.nll_loss(output, label) + l1_reg.item()
         loss.backward()
 
         # compute global accuracy
@@ -54,12 +54,12 @@ def train(data, model, optimizer, epoch, args):
 
         # Gradient Clipping
         if args.clip_norm:
-            clip_grad_norm(model.parameters(), args.clip_norm)
+            clip_grad_norm_(model.parameters(), args.clip_norm)
 
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.item()), acc='{:.2%}'.format(accuracy)))
+        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.item()), acc='{:.3%}'.format(accuracy)))
         avg_loss += loss.item()
         n_batches += 1
 
@@ -68,7 +68,7 @@ def train(data, model, optimizer, epoch, args):
             processed = batch_idx * args.batch_size
             total_n_samples = len(data) * args.batch_size
             progress = float(processed) / total_n_samples
-            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {} Train Accuracy: {}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {:.4} Train Accuracy: {:.3%}'.format(
                 epoch, processed, total_n_samples, progress, avg_loss, accuracy))
             avg_loss = 0.0
             n_batches = 0
@@ -107,41 +107,42 @@ def test(data, model, epoch, dictionaries, args):
 
     avg_loss = 0.0
     progress_bar = tqdm(data)
-    for batch_idx, sample_batched in enumerate(progress_bar):
-        img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
-        
-        output = model(img, qst)
-        pred = output.data.max(1)[1]
+    with torch.no_grad():
+        for batch_idx, sample_batched in enumerate(progress_bar):
+            img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
+            
+            output, l1_reg = model(img, qst)
+            pred = output.data.max(1)[1]
 
-        loss = F.nll_loss(output, label)
+            loss = F.nll_loss(output, label) + l1_reg.item()
 
-        # compute per-class accuracy
-        pred_class = [dictionaries[2][o+1] for o in pred]
-        real_class = [dictionaries[2][o+1] for o in label.data]
-        for idx,rc in enumerate(real_class):
-            class_corrects[rc] += (pred[idx] == label.data[idx])
-            class_n_samples[rc] += 1
+            # compute per-class accuracy
+            pred_class = [dictionaries[2][o.item()+1] for o in pred]
+            real_class = [dictionaries[2][o.item()+1] for o in label.data]
+            for idx,rc in enumerate(real_class):
+                class_corrects[rc] += (pred[idx] == label.data[idx])
+                class_n_samples[rc] += 1
 
-        for pc, rc in zip(pred_class,real_class):
-            class_invalids[rc] += (pc != rc)
+            for pc, rc in zip(pred_class,real_class):
+                class_invalids[rc] += (pc != rc)
 
-        for p,l in zip(pred, label.data):
-            confusion_matrix_target.append(sorted_classes.index(l))
-            confusion_matrix_pred.append(sorted_classes.index(p))
-        
-        # compute global accuracy
-        corrects += (pred == label.data).sum()
-        assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
-        invalids = sum(class_invalids.values())
-        n_samples += len(label)
-        assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
-        
-        avg_loss += loss.item()
+            for p,l in zip(pred, label.data):
+                confusion_matrix_target.append(sorted_classes.index(l))
+                confusion_matrix_pred.append(sorted_classes.index(p))
+            
+            # compute global accuracy
+            corrects += (pred == label.data).sum()
+            assert corrects.item() == sum(class_corrects.values()), 'Number of correct answers assertion error!'
+            invalids = sum(class_invalids.values())
+            n_samples += len(label)
+            assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
+            
+            avg_loss += loss.item()
 
-        if batch_idx % args.log_interval == 0:
-            accuracy = corrects / n_samples
-            invalids_perc = invalids / n_samples
-            progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
+            if batch_idx % args.log_interval == 0:
+                accuracy = corrects / n_samples
+                invalids_perc = invalids / n_samples
+                progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
     
     avg_loss /= len(data)
     invalids_perc = invalids / n_samples      
