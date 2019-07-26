@@ -49,7 +49,7 @@ def train(data, model, optimizer, epoch, args):
         # assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
         # invalids = sum(class_invalids.values())
         n_samples += len(label)
-        accuracy = corrects / n_samples
+        accuracy = corrects.item() / n_samples
         # assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
 
         # Gradient Clipping
@@ -59,7 +59,7 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.item()), acc='{:.3%}'.format(accuracy)))
+        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.item()), acc='{:.1%}'.format(accuracy)))
         avg_loss += loss.item()
         n_batches += 1
 
@@ -68,7 +68,7 @@ def train(data, model, optimizer, epoch, args):
             processed = batch_idx * args.batch_size
             total_n_samples = len(data) * args.batch_size
             progress = float(processed) / total_n_samples
-            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {:.4} Train Accuracy: {:.3%}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {:.4} Train Accuracy: {:.1%}'.format(
                 epoch, processed, total_n_samples, progress, avg_loss, accuracy))
             avg_loss = 0.0
             n_batches = 0
@@ -140,9 +140,9 @@ def test(data, model, epoch, dictionaries, args):
             avg_loss += loss.item()
 
             if batch_idx % args.log_interval == 0:
-                accuracy = corrects / n_samples
+                accuracy = corrects.item() / n_samples
                 invalids_perc = invalids / n_samples
-                progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
+                progress_bar.set_postfix(dict(acc='{:.1%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
     
     avg_loss /= len(data)
     invalids_perc = invalids / n_samples      
@@ -155,7 +155,7 @@ def test(data, model, epoch, dictionaries, args):
         if class_n_samples[v] != 0:
             accuracy = class_corrects[v] / class_n_samples[v]
             invalid = class_invalids[v] / class_n_samples[v]
-        print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
+        print('{} -- acc: {:.1%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
 
     dump_object = {
         'class_corrects':class_corrects,
