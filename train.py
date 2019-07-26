@@ -41,7 +41,7 @@ def train(data, model, optimizer, epoch, args):
         optimizer.zero_grad()
         output, l1_reg = model(img, qst)
         pred = output.data.max(1)[1]
-        loss = F.nll_loss(output, label) + l1_reg.item()
+        loss = F.nll_loss(output, label) + l1_reg.mean().item()
         loss.backward()
 
         # compute global accuracy
@@ -59,7 +59,7 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.item()), acc='{:.1%}'.format(accuracy)))
+        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.item()), acc='{:.2%}'.format(accuracy)))
         avg_loss += loss.item()
         n_batches += 1
 
@@ -68,7 +68,7 @@ def train(data, model, optimizer, epoch, args):
             processed = batch_idx * args.batch_size
             total_n_samples = len(data) * args.batch_size
             progress = float(processed) / total_n_samples
-            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {:.4} Train Accuracy: {:.1%}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0%})] Train loss: {:.4} Train Accuracy: {:.2%}'.format(
                 epoch, processed, total_n_samples, progress, avg_loss, accuracy))
             avg_loss = 0.0
             n_batches = 0
@@ -114,7 +114,7 @@ def test(data, model, epoch, dictionaries, args):
             output, l1_reg = model(img, qst)
             pred = output.data.max(1)[1]
 
-            loss = F.nll_loss(output, label) + l1_reg.item()
+            loss = F.nll_loss(output, label) + l1_reg.mean().item()
 
             # compute per-class accuracy
             pred_class = [dictionaries[2][o.item()+1] for o in pred]
@@ -142,7 +142,7 @@ def test(data, model, epoch, dictionaries, args):
             if batch_idx % args.log_interval == 0:
                 accuracy = corrects.item() / n_samples
                 invalids_perc = invalids / n_samples
-                progress_bar.set_postfix(dict(acc='{:.1%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
+                progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
     
     avg_loss /= len(data)
     invalids_perc = invalids / n_samples      
@@ -155,7 +155,7 @@ def test(data, model, epoch, dictionaries, args):
         if class_n_samples[v] != 0:
             accuracy = class_corrects[v] / class_n_samples[v]
             invalid = class_invalids[v] / class_n_samples[v]
-        print('{} -- acc: {:.1%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
+        print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
 
     dump_object = {
         'class_corrects':class_corrects,
