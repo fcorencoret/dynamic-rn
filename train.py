@@ -9,7 +9,7 @@ import os
 import pickle
 import re
 import numpy as np
-
+from comet_ml import Experiment
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -27,6 +27,7 @@ from model import RN
 
 import pdb
 
+
 def train(data, model, optimizer, epoch, args):
     model.train()
 
@@ -42,7 +43,7 @@ def train(data, model, optimizer, epoch, args):
         optimizer.zero_grad()
         output, l1_reg = model(img, qst)
         pred = output.data.max(1)[1]
-        loss = F.nll_loss(output, label) + l1_reg.mean().item()
+        loss = F.nll_loss(output, label) + args.l1_lambd * l1_reg.mean().item()
         loss.backward()
 
         # compute global accuracy
@@ -74,6 +75,7 @@ def train(data, model, optimizer, epoch, args):
             avg_loss = 0.0
             n_batches = 0
     torch.cuda.empty_cache()
+    return accuracy
 
 
 def test(data, model, epoch, dictionaries, args):
@@ -115,7 +117,7 @@ def test(data, model, epoch, dictionaries, args):
         output, l1_reg = model(img, qst)
         pred = output.data.max(1)[1]
 
-        loss = F.nll_loss(output, label) + l1_reg.mean().item()
+        loss = F.nll_loss(output, label) + args.l1_lambd * l1_reg.mean().item()
 
         # compute per-class accuracy
         pred_class = [dictionaries[2][o.item()+1] for o in pred]
@@ -147,7 +149,7 @@ def test(data, model, epoch, dictionaries, args):
     
     avg_loss /= len(data)
     invalids_perc = invalids / n_samples      
-    accuracy = corrects / n_samples
+    global_accuracy = corrects / n_samples
 
     print('Test Epoch {}: Accuracy = {:.2%} ({:g}/{}); Invalids = {:.2%} ({:g}/{}); Test loss = {}'.format(epoch, accuracy, corrects, n_samples, invalids_perc, invalids, n_samples, avg_loss))
     for v in class_n_samples.keys():
@@ -165,7 +167,8 @@ def test(data, model, epoch, dictionaries, args):
         'confusion_matrix_target':confusion_matrix_target,
         'confusion_matrix_pred':confusion_matrix_pred,
         'confusion_matrix_labels':sorted_labels,
-        'global_accuracy':accuracy
+        'global_accuracy':global_accuracy,
+        'global_invalids':invalids_perc
     }
     torch.cuda.empty_cache()
     return avg_loss, dump_object
@@ -375,26 +378,53 @@ def main(args):
                     
             print('Current learning rate: {}'.format(optimizer.param_groups[0]['lr']))
                 
-            # TRAIN
-            progress_bar.set_description('TRAIN')
-            train(clevr_train_loader, model, optimizer, epoch, args)
+            if args.comet:           
+                with experiment.train():
+                    # TRAIN
+                    progress_bar.set_description('TRAIN')
+                    accuracy = train(clevr_train_loader, model, optimizer, epoch, args)
+                    experiment.log_metrics({
+                        'accuracy' : accuracy
+                    })
 
-            # TEST
-            progress_bar.set_description('TEST')
-            test_loss, results = test(clevr_test_loader, model, epoch, dictionaries, args)
+                with experiment.test():
+                    # TEST
+                    progress_bar.set_description('TEST')
+                    test_loss, results = test(clevr_test_loader, model, epoch, dictionaries, args)
+                    for v in results['class_total_samples'].keys():
+                        accuracy = 0
+                        invalid = 0
+                        if results['class_total_samples'][v] != 0:
+                            accuracy = results['class_corrects'][v] / results['class_total_samples'][v]
+                            invalid = results['class_invalids'][v] / results['class_total_samples'][v]
+                        experiment.log_metrics({
+                            f'{v}_accuracy' : accuracy,
+                            f'{v}_invalid' : invalid})
+                    experiment.log_metrics({
+                        'accuracy' : results['global_accuracy'],
+                        'invalids' : results['global_invalids'],
+                        'loss' : test_loss})
 
-            if test_loss < best_loss:
-                print('Saving weights for epoch {}'.format(epoch))
-                # SAVE MODEL AND OPTIMIZER
-                weights_filename = os.path.join(args.model_dirs, 'best_weights_epoch_{}.pth'.format(epoch))
-                torch.save(model.state_dict(), weights_filename)
-                optimizer_filename = os.path.join(args.model_dirs, 'best_optimizer_epoch_{}.pth'.format(epoch))
-                torch.save(optimizer.state_dict(), optimizer_filename)
-                # dump results on file
-                results_filename = os.path.join(args.model_dirs, 'test_epoch_{}.pickle'.format(epoch))
-                pickle.dump(results, open(results_filename,'wb'))
-                best_loss = test_loss
-                best_epoch = epoch
+                if test_loss < best_loss:
+                    print('Saving weights for epoch {}'.format(epoch))
+                    # SAVE MODEL AND OPTIMIZER
+                    weights_filename = os.path.join(args.model_dirs, 'best_weights.pth')
+                    torch.save(model.state_dict(), weights_filename)
+                    optimizer_filename = os.path.join(args.model_dirs, 'best_optimizer.pth')
+                    torch.save(optimizer.state_dict(), optimizer_filename)
+                    # dump results on file
+                    results_filename = os.path.join(args.model_dirs, f'test_epoch_{epoch}.pickle')
+                    pickle.dump(results, open(results_filename,'wb'))
+                    best_loss = test_loss
+                    best_epoch = epoch
+
+            else:
+                # TRAIN
+                progress_bar.set_description('TRAIN')
+                accuracy = train(clevr_train_loader, model, optimizer, epoch, args)
+                # TEST
+                progress_bar.set_description('TEST')
+                test_loss, results = test(clevr_test_loader, model, epoch, dictionaries, args)
 
 
 if __name__ == '__main__':
@@ -454,6 +484,20 @@ if __name__ == '__main__':
                         help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value)')
     parser.add_argument('--subset', type=float, default=1.0,
                         help='percentage of the dataset')
+    parser.add_argument('--l1-lambd', type=float, default=1.0,
+                        help='L1 lambd for loss')
+    parser.add_argument('--comet', type=int, default=1,
+                        help='Log to comet')
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
+    if args.comet:
+        experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
+                        project_name="rn", workspace="adaptive-weights")
+        experiment.set_name(args.experiment)
+        experiment.log_parameters({
+            'batch_size' : args.batch_size,
+            'test_batch_size' : args.test_batch_size,
+            'subset' : args.subset,
+            'l1-lambd' : args.l1_lambd
+            })
     main(args)
