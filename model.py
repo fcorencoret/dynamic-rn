@@ -68,12 +68,15 @@ class RelationalLayerBase(nn.Module):
         # f_fc1
         self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
         self.mha_fc1 = MultiheadAttention(hyp["g_layers"][-1], MULTIHEADATTENTION_HEADS)
+        self.identity_fc1 = nn.Identity()
         # f_fc2
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
         self.mha_fc2 = MultiheadAttention(hyp["f_fc1"], MULTIHEADATTENTION_HEADS)
+        self.identity_fc2 = nn.Identity()
         # f_fc3
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
         self.mha_fc3 = MultiheadAttention(hyp["f_fc2"], MULTIHEADATTENTION_HEADS)
+        self.identity_fc3 = nn.Identity()
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
         
@@ -101,6 +104,7 @@ class RelationalLayer(RelationalLayerBase):
 
         #create all multiheadattention layers
         self.mha_layers = []
+        self.identity_layers = []
 
         for idx,g_layer_size in enumerate(hyp["g_layers"]):
             in_s = in_size if idx==0 else hyp["g_layers"][idx-1]
@@ -115,10 +119,12 @@ class RelationalLayer(RelationalLayerBase):
                 mha = MultiheadAttention(in_s, MULTIHEADATTENTION_HEADS)
             self.g_layers.append(l)
             self.mha_layers.append(mha)
+            self.identity_layers.append(nn.Identity())
 
 
         self.g_layers = nn.ModuleList(self.g_layers)
         self.mha_layers = nn.ModuleList(self.mha_layers)
+        self.identity_layers = nn.ModuleList(self.identity_layers)
         self.extraction = extraction
     
     def forward(self, x, qst):
@@ -149,7 +155,7 @@ class RelationalLayer(RelationalLayerBase):
         x_ = x_full.view(b * d**2, self.in_size)
 
         #create g and inject the question at the position pointed by quest_inject_position.
-        for idx, (g_layer, mha_layer, g_layer_size) in enumerate(zip(self.g_layers, self.mha_layers, self.g_layers_size)):
+        for idx, (g_layer, mha_layer, g_layer_size, identity) in enumerate(zip(self.g_layers, self.mha_layers, self.g_layers_size, self.identity_layers)):
             if idx==self.quest_inject_position:
                 in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
 
@@ -173,6 +179,7 @@ class RelationalLayer(RelationalLayerBase):
                 # Apply attn_output_weights to x_
                 x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
                 x_ = x_.view(b * (d ** 2), g_layer_size)
+            x_ = identity(x_)
 
         if self.extraction:
             return None
@@ -189,6 +196,7 @@ class RelationalLayer(RelationalLayerBase):
         _, attn_output_weights = self.mha_fc1(query, weights, weights)
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
         x_f = x_f * attn_output_weights.squeeze(1)
+        x_f = self.identity_fc1(x_f)
         # f_fc2
         x_f = self.f_fc2(x_f)
         x_f = self.dropout(x_f)
@@ -197,12 +205,14 @@ class RelationalLayer(RelationalLayerBase):
         _, attn_output_weights = self.mha_fc2(query, weights, weights)
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
         x_f = x_f * attn_output_weights.squeeze(1)
+        x_f = self.identity_fc2(x_f)
         # f_fc3
         x_f = self.f_fc3(x_f)
         weights = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
         _, attn_output_weights = self.mha_fc3(query, weights, weights)
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
         x_f = x_f * attn_output_weights.squeeze(1)
+        x_f = self.identity_fc3(x_f)
         return F.log_softmax(x_f, dim=1), l1_reg 
 
 class RN(nn.Module):
