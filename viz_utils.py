@@ -143,15 +143,18 @@ def make_res_dict():
         identity_fc3=torch.empty(0, 28, dtype=torch.float32),
     )
 
-def compute_mid_results(model, ds_per_qtype, with_attention=True,
-                        bsz=32, samples_per_qtype=None,
+def compute_mid_results(model, ds_per_qtype, with_attention=True, with_identity=True,
+                        bsz=32, samples_per_qtype=None, device=None,
     ):
 
     qtypes = list(ds_per_qtype.keys())
 
-    return_layers = _identity_return_layers.copy()
+    return_layers = {}
+    if with_identity:
+        return_layers.update(_identity_return_layers)
     if with_attention:
         return_layers.update(_mha_return_layers)
+
     model = IntermediateLayerGetter(model, return_layers, keep_output=False)
     model.eval()
 
@@ -174,18 +177,24 @@ def compute_mid_results(model, ds_per_qtype, with_attention=True,
                 collate_fn=collate_samples_from_pixels,
                 )
 
-            for i, b in enumerate(loader):
+            for i, b in tqdm(enumerate(loader), total=len(loader)):
                 model.coord_tensor = None
+                if device:
+                    b['image'] = b['image'].to(device)
+                    b['question'] = b['question'].to(device)
+
                 mid_res, _ = model(b['image'], b['question'])
 
-                for k in mha_keys:
-                    qres[k] = torch.cat((qres[k], mid_res[k][1].squeeze(1)))
+                if with_attention:
+                    for k in mha_keys:
+                        qres[k] = torch.cat((qres[k], mid_res[k][1].squeeze(1).cpu()))
 
-                for k in identity_keys:
-                    if 'gc' in k:
-                        qres[k] = torch.cat((qres[k], mid_res[k].view(-1, 64, 64, 256)))
-                    else:
-                        qres[k] = torch.cat((qres[k], mid_res[k]))
+                if with_identity:
+                    for k in identity_keys:
+                        if 'gc' in k:
+                            qres[k] = torch.cat((qres[k], mid_res[k].view(-1, 64, 64, 256).cpu()))
+                        else:
+                            qres[k] = torch.cat((qres[k], mid_res[k].cpu()))
 
             output[qtype] = qres
 
@@ -284,7 +293,7 @@ def init_selected_datasets(
     
     return get_selected_ds_per_qtype(ds, selected_idxs_per_qtype), dictionaries
 
-def load_model(model, weights_fp, data_parallel=True):
+def load_model(model, weights_fp, data_parallel=True, device_ids=None):
     if data_parallel:
         model = torch.nn.DataParallel(model)
     model.load_state_dict(torch.load(weights_fp, map_location='cpu'))
@@ -292,6 +301,25 @@ def load_model(model, weights_fp, data_parallel=True):
         model = model.module
     return model
 
+def plot_masks_per_qtype(results, mha_keys=mha_keys):
+    fig, axes = plt.subplots(ncols=1, nrows=len(mha_keys), figsize=(12, 16), sharex=False, constrained_layout=True)
+    qtypes = results.keys()
+
+    # norm = colors.LogNorm()
+    for i, k in enumerate(mha_keys):
+        ax = axes[i]
+        img = ax.imshow(
+            np.array([results[qtype][k].mean(dim=0).numpy() for qtype in qtypes]),
+            aspect='auto',
+            cmap='Greys_r',
+        )
+        ax.set_title(k)
+        ax.set_yticks(list(range(len(qtypes))))
+        ax.set_yticklabels(qtypes)
+        ax.set_xticks([64 * i for i in range(img.get_size()[1] // 64)])
+        cbar = fig.colorbar(img, ax=ax)
+        
+    plt.show()
 
 if __name__ == '__main__':
 
