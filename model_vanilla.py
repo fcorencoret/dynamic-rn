@@ -5,10 +5,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import math
-from MultiheadAttention import MultiheadAttention
-import pdb
-
-MULTIHEADATTENTION_HEADS = 1
 
 class ConvInputModel(nn.Module):
     def __init__(self):
@@ -65,17 +61,11 @@ class RelationalLayerBase(nn.Module):
     def __init__(self, in_size, out_size, qst_size, hyp):
         super().__init__()
 
-        # f_fc1
         self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
-        self.mha_fc1 = MultiheadAttention(hyp["g_layers"][-1], MULTIHEADATTENTION_HEADS)
         self.identity_fc1 = nn.Identity()
-        # f_fc2
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
-        self.mha_fc2 = MultiheadAttention(hyp["f_fc1"], MULTIHEADATTENTION_HEADS)
         self.identity_fc2 = nn.Identity()
-        # f_fc3
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
-        self.mha_fc3 = MultiheadAttention(hyp["f_fc2"], MULTIHEADATTENTION_HEADS)
         self.identity_fc3 = nn.Identity()
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
@@ -86,9 +76,9 @@ class RelationalLayerBase(nn.Module):
         self.in_size = in_size
         self.out_size = out_size
 
-    def cuda(self, device=None):
+    def cuda(self):
         self.on_gpu = True
-        super().cuda(device)
+        super().cuda()
     
 
 class RelationalLayer(RelationalLayerBase):
@@ -98,34 +88,27 @@ class RelationalLayer(RelationalLayerBase):
         self.quest_inject_position = hyp["question_injection_position"]
         self.in_size = in_size
 
+        self.identity_layers = []
+
 	    #create all g layers
         self.g_layers = []
         self.g_layers_size = hyp["g_layers"]
-
-        #create all multiheadattention layers
-        self.mha_layers = []
-        self.identity_layers = []
-
         for idx,g_layer_size in enumerate(hyp["g_layers"]):
             in_s = in_size if idx==0 else hyp["g_layers"][idx-1]
             out_s = g_layer_size
             if idx==self.quest_inject_position:
                 #create the h layer. Now, for better code organization, it is part of the g layers pool. 
                 l = nn.Linear(in_s+qst_size, out_s)
-                mha = MultiheadAttention(in_s+qst_size, MULTIHEADATTENTION_HEADS)
             else:
                 #create a standard g layer.
                 l = nn.Linear(in_s, out_s)
-                mha = MultiheadAttention(in_s, MULTIHEADATTENTION_HEADS)
             self.g_layers.append(l)
-            self.mha_layers.append(mha)
             self.identity_layers.append(nn.Identity())
-
-
+            
         self.g_layers = nn.ModuleList(self.g_layers)
-        self.mha_layers = nn.ModuleList(self.mha_layers)
         self.identity_layers = nn.ModuleList(self.identity_layers)
         self.extraction = extraction
+
     
     def forward(self, x, qst):
         # x = (B x 8*8 x 24)
@@ -133,11 +116,9 @@ class RelationalLayer(RelationalLayerBase):
         """g"""
         b, d, k = x.size()
         qst_size = qst.size()[1]
-        l1_reg = 0
         
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)                      # (B x 1 x 128)
-        query = qst.clone().transpose(1, 0)
         qst = qst.repeat(1, d, 1)                       # (B x 64 x 128)
         qst = torch.unsqueeze(qst, 2)                      # (B x 64 x 1 x 128)
         
@@ -155,14 +136,14 @@ class RelationalLayer(RelationalLayerBase):
         x_ = x_full.view(b * d**2, self.in_size)
 
         #create g and inject the question at the position pointed by quest_inject_position.
-        for idx, (g_layer, mha_layer, g_layer_size, identity) in enumerate(zip(self.g_layers, self.mha_layers, self.g_layers_size, self.identity_layers)):
+        for idx, (g_layer, g_layer_size, identity) in enumerate(zip(self.g_layers, self.g_layers_size, self.identity_layers)):
             if idx==self.quest_inject_position:
                 in_size = self.in_size if idx==0 else self.g_layers_size[idx-1]
 
                 # questions inserted
                 x_img = x_.view(b,d,d,in_size)
                 qst = qst.repeat(1,1,d,1)
-                x_concat = torch.cat([x_img,qst],3) #(B x 64 x 64 x 128 + 2 * 26)
+                x_concat = torch.cat([x_img,qst],3) #(B x 64 x 64 x 128+256)
 
                 # h layer
                 x_ = x_concat.view(b*(d**2),in_size+self.qst_size)
@@ -171,14 +152,6 @@ class RelationalLayer(RelationalLayerBase):
             else:
                 x_ = g_layer(x_)
                 x_ = F.relu(x_)
-                # Pass through multiheadattention layer
-                weights = torch.unsqueeze(g_layer.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-                _, attn_output_weights = mha_layer(query, weights, weights)
-                l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
-                attn_output_weights = attn_output_weights.repeat(1, d**2, 1)
-                # Apply attn_output_weights to x_
-                x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
-                x_ = x_.view(b * (d ** 2), g_layer_size)
             x_ = identity(x_)
 
         if self.extraction:
@@ -189,31 +162,19 @@ class RelationalLayer(RelationalLayerBase):
         x_g = x_g.sum(1).squeeze(1)
         
         """f"""
-        # f_fc1
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
-        weights = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        _, attn_output_weights = self.mha_fc1(query, weights, weights)
-        l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
-        x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc1(x_f)
-        # f_fc2
+
         x_f = self.f_fc2(x_f)
         x_f = self.dropout(x_f)
         x_f = F.relu(x_f)
-        weights = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        _, attn_output_weights = self.mha_fc2(query, weights, weights)
-        l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
-        x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc2(x_f)
-        # f_fc3
+
         x_f = self.f_fc3(x_f)
-        weights = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        _, attn_output_weights = self.mha_fc3(query, weights, weights)
-        l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
-        x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc3(x_f)
-        return F.log_softmax(x_f, dim=1), l1_reg 
+
+        return F.log_softmax(x_f, dim=1)
 
 class RN(nn.Module):
     def __init__(self, args, hyp, extraction=False):
@@ -271,8 +232,8 @@ class RN(nn.Module):
         if self.on_gpu:
             self.coord_tensor = self.coord_tensor.cuda()
     
-    def cuda(self, device=None):
+    def cuda(self):
         self.on_gpu = True
-        self.rl.cuda(device)
-        super(RN, self).cuda(device)
+        self.rl.cuda()
+        super(RN, self).cuda()
         

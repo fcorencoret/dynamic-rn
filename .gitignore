@@ -106,3 +106,6 @@ ENV/
 
 # question cache
 questions/
+
+# mac index
+*.DS_Store

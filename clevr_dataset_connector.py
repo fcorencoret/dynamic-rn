@@ -18,6 +18,7 @@ class ClevrDataset(Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
+
         if train:
             quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
             cached_questions = os.path.join('questions', 'CLEVR_train_questions.pkl')
@@ -27,7 +28,6 @@ class ClevrDataset(Dataset):
             cached_questions = os.path.join('questions', 'CLEVR_val_questions.pkl')
             self.img_dir = os.path.join(clevr_dir, 'images', 'val')
 
-        
         if os.path.exists(cached_questions):
             print('==> using cached questions: {}'.format(cached_questions))
             with open(cached_questions, 'rb') as f:
@@ -37,7 +37,7 @@ class ClevrDataset(Dataset):
                 self.questions = json.load(json_file)['questions']
             with open(cached_questions, 'wb') as f:
                 pickle.dump(self.questions, f)
-                
+
         self.clevr_dir = clevr_dir
         self.transform = transform
         self.dictionaries = dictionaries
