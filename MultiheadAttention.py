@@ -49,7 +49,7 @@ class MultiheadAttention(nn.Module):
             self.bias_k = self.bias_v = None
 
         self.add_zero_attn = add_zero_attn
-
+        self.norm = nn.InstanceNorm1d(1, affine = True)
         self._reset_parameters()
 
     def _reset_parameters(self):
@@ -185,9 +185,10 @@ class MultiheadAttention(nn.Module):
             )
             attn_output_weights = attn_output_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
+        attn_output_weights = self.norm(attn_output_weights)
         attn_output_weights = torch.sigmoid(attn_output_weights.float())
-        attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
-
+        attn_output_weights = F.dropout(attn_output_weights, p=0.5, training=self.training)
+        
         attn_output = torch.bmm(attn_output_weights, v)
         assert list(attn_output.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
