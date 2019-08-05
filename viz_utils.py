@@ -349,7 +349,7 @@ def load_model(model, weights_fp, data_parallel=True, device_ids=None):
         model = model.module
     return model
 
-def plot_masks_per_qtype(results, mha_keys=mha_keys):
+def plot_masks_per_qtype(results, mha_keys=mha_keys, adict=None):
     fig, axes = plt.subplots(ncols=1, nrows=len(mha_keys), figsize=(12, 16), sharex=False, constrained_layout=True)
     qtypes = results.keys()
 
@@ -367,7 +367,15 @@ def plot_masks_per_qtype(results, mha_keys=mha_keys):
         ax.set_xticks([64 * i for i in range(img.get_size()[1] // 64)])
         cbar = fig.colorbar(img, ax=ax)
         
+    if adict:
+        ax = axes[-1]
+        adict = sorted(adict.items(), key=lambda x: x[1])
+        ax.set_xticks(np.arange(0, 28, 1))
+        ax.set_xticklabels([a[0] for a in adict], rotation=60)
+
     plt.show()
+
+    return fig, axes
 
 if __name__ == '__main__':
 
