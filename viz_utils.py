@@ -226,7 +226,8 @@ def compute_mid_results(model, ds_per_qtype, with_attention=True, with_identity=
                 collate_fn=collate_samples_from_pixels,
                 )
 
-            for i, b in tqdm(enumerate(loader), total=len(loader)):
+            #for i, b in tqdm(enumerate(loader), total=len(loader)):
+            for i, b in enumerate(loader):
                 model._model.coord_tensor = None
                 if device:
                     b['image'] = b['image'].to(device)
@@ -377,9 +378,11 @@ def plot_masks_per_qtype(results, mha_keys=mha_keys, adict=None):
 
 def plot_masks_histograms(metrics, keys=mha_keys,
         mean_key='histograms_mean', std_key='histograms_std'):
-    fig, axes = plt.subplots(ncols=1, nrows=len(keys), figsize=(6, 12), sharex=False, constrained_layout=True)
+    fig, axes = plt.subplots(ncols=1, nrows=len(keys), figsize=(6, 12), sharex=True, constrained_layout=True)
     
     bins = np.linspace(0, 1, 11)
+    axes[0].set_ylabel('Density')
+
     for i, k in enumerate(keys):
         ax = axes[i]
         ax.set_title(k)
@@ -401,6 +404,7 @@ def plot_masks_histograms(metrics, keys=mha_keys,
         mid = 0.5 * (bins[1:] + bins[:-1])
         ax.errorbar(mid, n, yerr=histograms_std.numpy(), fmt='none', )
     
+    # ax.set_xlabel('Sparsity value')
     plt.show()
 
     return fig, axes

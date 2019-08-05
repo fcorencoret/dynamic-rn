@@ -76,9 +76,9 @@ class RelationalLayerBase(nn.Module):
         self.in_size = in_size
         self.out_size = out_size
 
-    def cuda(self):
+    def cuda(self, device=None):
         self.on_gpu = True
-        super().cuda()
+        super().cuda(device)
     
 
 class RelationalLayer(RelationalLayerBase):
@@ -178,7 +178,7 @@ class RelationalLayer(RelationalLayerBase):
 
 class RN(nn.Module):
     def __init__(self, args, hyp, extraction=False):
-        super(RN, self).__init__()
+        super().__init__()
         self.coord_tensor = None
         self.on_gpu = False
         
@@ -232,8 +232,8 @@ class RN(nn.Module):
         if self.on_gpu:
             self.coord_tensor = self.coord_tensor.cuda()
     
-    def cuda(self):
+    def cuda(self, device=None):
         self.on_gpu = True
-        self.rl.cuda()
-        super(RN, self).cuda()
+        self.rl.cuda(device)
+        super().cuda(device)
         
