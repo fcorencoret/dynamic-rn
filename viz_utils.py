@@ -21,7 +21,7 @@ from model import RN
 from utils import build_dictionaries, collate_samples_from_pixels
 from train import initialize_dataset
 from clevr_dataset_connector import ClevrDataset
-from viz.IntermediateLayerGetter import IntermediateLayerGetter
+from viz.IntermediateLayerGetter import IntermediateLayerGetter, rgetattr
 
 _mha_return_layers = {
     'rl.mha_fc1': 'mha_fc1',
@@ -143,6 +143,54 @@ def make_res_dict():
         identity_fc3=torch.empty(0, 28, dtype=torch.float32),
     )
 
+def compute_attention_only(model, ds_per_qtype, bsz=32, samples_per_qtype=None, device=None):
+
+    qtypes = list(ds_per_qtype.keys())
+    model.eval()
+    output = {}
+
+    with torch.no_grad():
+        for qtype in tqdm(qtypes):
+            qres = make_res_dict()
+
+            if samples_per_qtype is not None:
+                ds = Subset(ds_per_qtype[qtype], np.arange(samples_per_qtype))
+            else:
+                ds = ds_per_qtype[qtype]
+
+            loader = DataLoader(
+                ds,
+                batch_size=bsz,
+                shuffle=False,
+                num_workers=1,
+                collate_fn=collate_samples_from_pixels,
+                )
+
+            for i, b in tqdm(enumerate(loader), total=len(loader)):
+
+                
+
+                if device:
+                    b['image'] = b['image'].to(device)
+                    b['question'] = b['question'].to(device)
+
+                mid_res, _ = model(b['image'], b['question'])
+
+                if with_attention:
+                    for k in mha_keys:
+                        qres[k] = torch.cat((qres[k], mid_res[k][1].squeeze(1).cpu()))
+
+                if with_identity:
+                    for k in identity_keys:
+                        if 'gc' in k:
+                            qres[k] = torch.cat((qres[k], mid_res[k].view(-1, 64, 64, 256).cpu()))
+                        else:
+                            qres[k] = torch.cat((qres[k], mid_res[k].cpu()))
+
+            output[qtype] = qres
+
+    return output
+
 def compute_mid_results(model, ds_per_qtype, with_attention=True, with_identity=True,
                         bsz=32, samples_per_qtype=None, device=None,
     ):
@@ -178,7 +226,7 @@ def compute_mid_results(model, ds_per_qtype, with_attention=True, with_identity=
                 )
 
             for i, b in tqdm(enumerate(loader), total=len(loader)):
-                model.coord_tensor = None
+                model._model.coord_tensor = None
                 if device:
                     b['image'] = b['image'].to(device)
                     b['question'] = b['question'].to(device)
