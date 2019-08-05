@@ -144,6 +144,7 @@ def make_res_dict():
     )
 
 def compute_attention_only(model, ds_per_qtype, bsz=32, samples_per_qtype=None, device=None):
+    # UNUSED
 
     qtypes = list(ds_per_qtype.keys())
     model.eval()
@@ -251,12 +252,9 @@ def compute_mid_results(model, ds_per_qtype, with_attention=True, with_identity=
 def _get_mask_metrics(t):
     # t es el tensor con máscaras NO AGREGADAS
 
-    histograms_mean = torch.stack(
-        [torch.histc(t , min=0, max=1, bins=11) for t in t]
-        ).mean(dim=0)
-    histograms_std = torch.stack(
-        [torch.histc(t , min=0, max=1, bins=11) for t in t]
-        ).std(dim=0)
+    histograms = [torch.histc(t , min=0, max=1, bins=10) for t in t]
+    histograms_mean = torch.stack(histograms).mean(dim=0)
+    histograms_std = torch.stack(histograms).std(dim=0)
 
     mean = t.mean(dim=0)
     std = t.std(dim=0)
@@ -376,6 +374,37 @@ def plot_masks_per_qtype(results, mha_keys=mha_keys, adict=None):
     plt.show()
 
     return fig, axes
+
+def plot_masks_histograms(metrics, keys=mha_keys,
+        mean_key='histograms_mean', std_key='histograms_std'):
+    fig, axes = plt.subplots(ncols=1, nrows=len(keys), figsize=(6, 12), sharex=False, constrained_layout=True)
+    
+    bins = np.linspace(0, 1, 11)
+    for i, k in enumerate(keys):
+        ax = axes[i]
+        ax.set_title(k)
+        histograms_mean = metrics[k][mean_key]
+        histograms_std = metrics[k][std_key]
+        factor = histograms_mean.sum()
+        histograms_mean /= factor
+        histograms_std /= factor
+
+        n, bins, _ = ax.hist(
+            bins[:-1], 
+            bins,
+            weights=histograms_mean.numpy(),
+            # yerr=metrics['metrics_per_qtype']['exist']['mha_gc3']['histograms_std'],
+            # density=True,
+            # cumulative=True,
+        )
+        ax.set_xticks(bins)
+        mid = 0.5 * (bins[1:] + bins[:-1])
+        ax.errorbar(mid, n, yerr=histograms_std.numpy(), fmt='none', )
+    
+    plt.show()
+
+    return fig, axes
+
 
 if __name__ == '__main__':
 
