@@ -9,7 +9,7 @@ import os
 import pickle
 import re
 import numpy as np
-from comet_ml import Experiment
+from comet_ml import Experiment, ExistingExperiment
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -489,12 +489,24 @@ if __name__ == '__main__':
                         help='L1 lambd for loss')
     parser.add_argument('--comet', type=int, default=1,
                         help='Log to comet')
+    parser.add_argument('--resume_comet', type=str, default='',
+                        help='Log to comet')
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
     if args.comet:
         experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
                         project_name="rn", workspace="adaptive-weights")
         experiment.set_name(args.experiment)
+        experiment.log_parameters({
+            'batch_size' : args.batch_size,
+            'test_batch_size' : args.test_batch_size,
+            'subset' : args.subset,
+            'l1-lambd' : args.l1_lambd
+            })
+    if args.resume_comet:
+        print(f'Resumed comet with key {args.resume_comet}')
+        experiment = ExistingExperiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51", 
+                        previous_experiment=args.resume_comet)
         experiment.log_parameters({
             'batch_size' : args.batch_size,
             'test_batch_size' : args.test_batch_size,
