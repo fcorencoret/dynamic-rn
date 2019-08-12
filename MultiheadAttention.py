@@ -6,6 +6,32 @@ from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 import torch.nn as nn
 
+class SE(nn.Module):
+    def __init__(self, input_dim, output_dim, r = 16):
+        super(SE, self).__init__()
+
+        self.r = r
+        self.scale = int(input_dim/self.r)
+
+        self.fc1 = nn.Linear(input_dim, self.scale)
+        self.relu = nn.ReLU(inplace=True)
+        self.fc2 = nn.Linear(self.scale, output_dim)
+        self.sigmoid = nn.Sigmoid()
+
+        torch.nn.init.xavier_uniform_(self.fc1.weight)
+        torch.nn.init.xavier_uniform_(self.fc2.weight)
+
+        self.scalars = None
+
+    def forward(self, x):
+        data_clone = x.clone()
+
+        out = self.preProcess(x)
+        out = self.relu(self.fc1(out))
+        out = self.sigmoid(self.fc2(out))     
+
+        return out
+
 # @weak_module
 class MultiheadAttention(nn.Module):
     r"""Allows the model to jointly attend to information
@@ -49,7 +75,7 @@ class MultiheadAttention(nn.Module):
             self.bias_k = self.bias_v = None
 
         self.add_zero_attn = add_zero_attn
-
+        self.norm = nn.InstanceNorm1d(1, affine = True)
         self._reset_parameters()
 
     def _reset_parameters(self):
@@ -185,6 +211,7 @@ class MultiheadAttention(nn.Module):
             )
             attn_output_weights = attn_output_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
+        attn_output_weights = self.norm(attn_output_weights)
         attn_output_weights = torch.sigmoid(attn_output_weights.float())
         attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
 
