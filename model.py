@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import math
-from MultiheadAttention import MultiheadAttention
+from MultiheadAttention import MultiheadAttention, SE
 import pdb
 
 MULTIHEADATTENTION_HEADS = 1
@@ -67,15 +67,18 @@ class RelationalLayerBase(nn.Module):
 
         # f_fc1
         self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
-        self.mha_fc1 = MultiheadAttention(hyp["g_layers"][-1], MULTIHEADATTENTION_HEADS)
+        #self.mha_fc1 = MultiheadAttention(hyp["g_layers"][-1], MULTIHEADATTENTION_HEADS)
+        self.mha_fc1 = SE(hyp["g_layers"][-1], hyp["g_layers"][-1])
         self.identity_fc1 = nn.Identity()
         # f_fc2
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
-        self.mha_fc2 = MultiheadAttention(hyp["f_fc1"], MULTIHEADATTENTION_HEADS)
+        #self.mha_fc2 = MultiheadAttention(hyp["f_fc1"], MULTIHEADATTENTION_HEADS)
+        self.mha_fc2 = SE(hyp["f_fc1"], hyp["f_fc1"])
         self.identity_fc2 = nn.Identity()
         # f_fc3
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
-        self.mha_fc3 = MultiheadAttention(hyp["f_fc2"], MULTIHEADATTENTION_HEADS)
+        #self.mha_fc3 = MultiheadAttention(hyp["f_fc2"], MULTIHEADATTENTION_HEADS)
+        self.mha_fc3 = SE(hyp["f_fc2"], hyp["f_fc2"])
         self.identity_fc3 = nn.Identity()
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
@@ -112,11 +115,13 @@ class RelationalLayer(RelationalLayerBase):
             if idx==self.quest_inject_position:
                 #create the h layer. Now, for better code organization, it is part of the g layers pool. 
                 l = nn.Linear(in_s+qst_size, out_s)
-                mha = MultiheadAttention(in_s+qst_size, MULTIHEADATTENTION_HEADS)
+                #mha = MultiheadAttention(in_s+qst_size, MULTIHEADATTENTION_HEADS)
+                mha = SE(in_s+qst_size, in_s+qst_size)
             else:
                 #create a standard g layer.
                 l = nn.Linear(in_s, out_s)
-                mha = MultiheadAttention(in_s, MULTIHEADATTENTION_HEADS)
+                #mha = MultiheadAttention(in_s, MULTIHEADATTENTION_HEADS)
+                mha = SE(in_s, in_s)
             self.g_layers.append(l)
             self.mha_layers.append(mha)
             self.identity_layers.append(nn.Identity())
