@@ -24,9 +24,6 @@ class SE(nn.Module):
         self.scalars = None
 
     def forward(self, x):
-        data_clone = x.clone()
-
-        out = self.preProcess(x)
         out = self.relu(self.fc1(out))
         out = self.sigmoid(self.fc2(out))     
 
