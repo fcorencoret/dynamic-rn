@@ -68,17 +68,17 @@ class RelationalLayerBase(nn.Module):
         # f_fc1
         self.f_fc1 = nn.Linear(hyp["g_layers"][-1], hyp["f_fc1"])
         #self.mha_fc1 = MultiheadAttention(hyp["g_layers"][-1], MULTIHEADATTENTION_HEADS)
-        self.mha_fc1 = SE(hyp["g_layers"][-1], hyp["g_layers"][-1])
+        self.mha_fc1 = SE(hyp["g_layers"][-1], hyp["f_fc1"])
         self.identity_fc1 = nn.Identity()
         # f_fc2
         self.f_fc2 = nn.Linear(hyp["f_fc1"], hyp["f_fc2"])
         #self.mha_fc2 = MultiheadAttention(hyp["f_fc1"], MULTIHEADATTENTION_HEADS)
-        self.mha_fc2 = SE(hyp["f_fc1"], hyp["f_fc1"])
+        self.mha_fc2 = SE(hyp["f_fc1"], hyp["f_fc2"])
         self.identity_fc2 = nn.Identity()
         # f_fc3
         self.f_fc3 = nn.Linear(hyp["f_fc2"], out_size)
         #self.mha_fc3 = MultiheadAttention(hyp["f_fc2"], MULTIHEADATTENTION_HEADS)
-        self.mha_fc3 = SE(hyp["f_fc2"], hyp["f_fc2"])
+        self.mha_fc3 = SE(hyp["f_fc2"], out_size)
         self.identity_fc3 = nn.Identity()
     
         self.dropout = nn.Dropout(p=hyp["dropout"])
@@ -116,12 +116,12 @@ class RelationalLayer(RelationalLayerBase):
                 #create the h layer. Now, for better code organization, it is part of the g layers pool. 
                 l = nn.Linear(in_s+qst_size, out_s)
                 #mha = MultiheadAttention(in_s+qst_size, MULTIHEADATTENTION_HEADS)
-                mha = SE(in_s+qst_size, in_s+qst_size)
+                mha = SE(in_s+qst_size, out_s)
             else:
                 #create a standard g layer.
                 l = nn.Linear(in_s, out_s)
                 #mha = MultiheadAttention(in_s, MULTIHEADATTENTION_HEADS)
-                mha = SE(in_s, in_s)
+                mha = SE(in_s, out_s)
             self.g_layers.append(l)
             self.mha_layers.append(mha)
             self.identity_layers.append(nn.Identity())
@@ -198,7 +198,7 @@ class RelationalLayer(RelationalLayerBase):
         x_f = self.f_fc1(x_g)
         x_f = F.relu(x_f)
         weights = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        _, attn_output_weights = self.mha_fc1(query, weights, weights)
+        _, attn_output_weights = self.mha_fc1(query)
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
         x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc1(x_f)
@@ -207,14 +207,14 @@ class RelationalLayer(RelationalLayerBase):
         x_f = self.dropout(x_f)
         x_f = F.relu(x_f)
         weights = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        _, attn_output_weights = self.mha_fc2(query, weights, weights)
+        _, attn_output_weights = self.mha_fc2(query)
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
         x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc2(x_f)
         # f_fc3
         x_f = self.f_fc3(x_f)
         weights = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-        _, attn_output_weights = self.mha_fc3(query, weights, weights)
+        _, attn_output_weights = self.mha_fc3(query)
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
         x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc3(x_f)

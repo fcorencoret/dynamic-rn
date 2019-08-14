@@ -12,6 +12,7 @@ class SE(nn.Module):
 
         self.r = r
         self.scale = int(input_dim/self.r)
+        self.output_dim = output_dim
 
         self.fc1 = nn.Linear(input_dim, self.scale)
         self.relu = nn.ReLU(inplace=True)
@@ -24,10 +25,11 @@ class SE(nn.Module):
         self.scalars = None
 
     def forward(self, x):
-        out = self.relu(self.fc1(out))
+        tgt_len, bsz, embed_dim = x.size()
+        out = self.relu(self.fc1(x.view(bsz, embed_dim)))
         out = self.sigmoid(self.fc2(out))     
 
-        return out
+        return out, out.view(bsz, 1, self.output_dim)
 
 # @weak_module
 class MultiheadAttention(nn.Module):

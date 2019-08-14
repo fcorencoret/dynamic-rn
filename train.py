@@ -181,13 +181,13 @@ def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, s
 
         # Initialize Clevr dataset loaders
         clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
-                                        shuffle=False, num_workers=8, collate_fn=utils.collate_samples_from_pixels)
+                                        shuffle=True, num_workers=8, collate_fn=utils.collate_samples_from_pixels)
         clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
                                        shuffle=False, num_workers=8, collate_fn=utils.collate_samples_from_pixels)
     else:
         # Initialize Clevr dataset loaders
         clevr_train_loader = DataLoader(clevr_dataset_train, batch_size=train_bs,
-                                        shuffle=False, collate_fn=utils.collate_samples_state_description)
+                                        shuffle=True, collate_fn=utils.collate_samples_state_description)
         clevr_test_loader = DataLoader(clevr_dataset_test, batch_size=test_bs,
                                        shuffle=False, collate_fn=utils.collate_samples_state_description)
     return clevr_train_loader, clevr_test_loader
