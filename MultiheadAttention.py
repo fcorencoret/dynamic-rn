@@ -18,6 +18,7 @@ class SE(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.fc2 = nn.Linear(self.scale, output_dim)
         self.sigmoid = nn.Sigmoid()
+        self.norm = nn.InstanceNorm1d(1, affine = False)
 
         torch.nn.init.xavier_uniform_(self.fc1.weight)
         torch.nn.init.xavier_uniform_(self.fc2.weight)
@@ -27,7 +28,9 @@ class SE(nn.Module):
     def forward(self, x):
         tgt_len, bsz, embed_dim = x.size()
         out = self.relu(self.fc1(x.view(bsz, embed_dim)))
-        out = self.sigmoid(self.fc2(out))     
+        out = self.fc2(out)
+        out = self.norm(out.unsqueeze(1))
+        out = self.sigmoid(out)     
 
         return out, out.view(bsz, 1, self.output_dim)
 

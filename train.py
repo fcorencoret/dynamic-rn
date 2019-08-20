@@ -209,13 +209,13 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True, sub_set 
         clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries)
         clevr_dataset_test = ClevrDatasetStateDescription(clevr_dir, False, dictionaries)
 
-    if sub_set < 1:
-        random.seed(10)
-        sub_indx = random.sample(range(0, len(clevr_dataset_train)), int(len(clevr_dataset_train)*sub_set))
-        clevr_dataset_train = torch.utils.data.Subset(clevr_dataset_train, sub_indx)
+    #if sub_set < 1:
+    #    random.seed(10)
+    #    sub_indx = random.sample(range(0, len(clevr_dataset_train)), int(len(clevr_dataset_train)*sub_set))
+    #    clevr_dataset_train = torch.utils.data.Subset(clevr_dataset_train, sub_indx)
 
-        sub_indx = random.sample(range(0, len(clevr_dataset_test)), int(len(clevr_dataset_test)*sub_set))
-        clevr_dataset_test = torch.utils.data.Subset(clevr_dataset_test, sub_indx)
+    #    sub_indx = random.sample(range(0, len(clevr_dataset_test)), int(len(clevr_dataset_test)*sub_set))
+    #    clevr_dataset_test = torch.utils.data.Subset(clevr_dataset_test, sub_indx)
 
     return clevr_dataset_train, clevr_dataset_test 
         
