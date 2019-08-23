@@ -32,6 +32,37 @@ class SE(nn.Module):
 
         return out, out.view(bsz, 1, self.output_dim)
 
+DEFAULT_THRESHOLD = 5e-3
+
+class Binarizer(torch.autograd.Function):
+    """Binarizes {0, 1} a real valued tensor."""
+
+    def __init__(self, threshold=DEFAULT_THRESHOLD):
+        super(Binarizer, self).__init__()
+        self.threshold = threshold
+
+    def forward(self, inputs):
+        outputs = inputs.clone()
+        outputs[inputs.le(self.threshold)] = 0
+        outputs[inputs.gt(self.threshold)] = 1
+        return outputs
+
+    def backward(self, gradOutput):
+        return gradOutput
+
+class PiggyBack(nn.Module):
+    def __init__(self, input_dim):
+        super(SE, self).__init__()
+
+        self.input_dim = input_dim
+        self.mask = nn.Parameterr(torch.tensor(input_dim))
+        torch.nn.init.xavier_uniform_(self.mask)
+
+    def forward(self, x):
+        out = self.threshold_fn(self.mask)
+
+        return out, out.view(x.size(0), 1, self.input_dim)
+
 # @weak_module
 class MultiheadAttention(nn.Module):
     r"""Allows the model to jointly attend to information
