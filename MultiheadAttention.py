@@ -55,13 +55,17 @@ class PiggyBack(nn.Module):
         super(SE, self).__init__()
 
         self.input_dim = input_dim
-        self.mask = nn.Parameterr(torch.tensor(input_dim))
-        torch.nn.init.xavier_uniform_(self.mask)
+        self.mask = nn.Parameterr(torch.Tensor(input_dim))
+        self.mask.fill_(1)
+
+        self.sigmoid = nn.Sigmoid()
+        #torch.nn.init.xavier_uniform_(self.mask)
 
         self.threshold_fn = Binarizer(threshold=DEFAULT_THRESHOLD)
 
     def forward(self, x):
         out = self.threshold_fn(self.mask)
+        #out = self.sigmoid(out)  
 
         return out, out.view(x.size(0), 1, self.input_dim)
 
