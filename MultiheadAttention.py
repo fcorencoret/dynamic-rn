@@ -23,8 +23,6 @@ class SE(nn.Module):
         torch.nn.init.xavier_uniform_(self.fc1.weight)
         torch.nn.init.xavier_uniform_(self.fc2.weight)
 
-        self.scalars = None
-
     def forward(self, x):
         tgt_len, bsz, embed_dim = x.size()
         out = self.relu(self.fc1(x.view(bsz, embed_dim)))
