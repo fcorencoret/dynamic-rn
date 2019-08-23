@@ -271,9 +271,9 @@ def main(args):
 
     if args.freeze_RN:
         for name, param in model.named_parameters():
-            print(name)
-            if not name.startswith('rl.q') and not name.startswith('rl.m'):
+            if not name.startswith('rl.m'):
                 param.requires_grad = False
+                print(f'Freezed {name} layer')
 
     if torch.cuda.device_count() > 1 and args.cuda:
         model = torch.nn.DataParallel(model)        
@@ -385,7 +385,8 @@ def main(args):
                     progress_bar.set_description('TRAIN')
                     accuracy = train(clevr_train_loader, model, optimizer, epoch, args)
                     experiment.log_metrics({
-                        'accuracy' : accuracy
+                        'accuracy' : accuracy,
+                        'epoch' : epoch,
                     })
 
                 with experiment.test():
@@ -404,7 +405,9 @@ def main(args):
                     experiment.log_metrics({
                         'accuracy' : results['global_accuracy'],
                         'invalids' : results['global_invalids'],
-                        'loss' : test_loss})
+                        'loss' : test_loss,
+                        'epoch' : epoch,
+                    })
 
                 if test_loss < best_loss:
                     print('Saving weights for epoch {}'.format(epoch))
