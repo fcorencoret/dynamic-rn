@@ -51,11 +51,11 @@ class Binarizer(torch.autograd.Function):
         return gradOutput
 
 class PiggyBack(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim, output_dim):
         super(SE, self).__init__()
 
-        self.input_dim = input_dim
-        self.mask = nn.Parameterr(torch.Tensor(input_dim))
+        self.output_dim = output_dim
+        self.mask = nn.Parameterr(torch.Tensor(output_dim))
         self.mask.fill_(1)
 
         self.sigmoid = nn.Sigmoid()
@@ -67,7 +67,7 @@ class PiggyBack(nn.Module):
         out = self.threshold_fn(self.mask)
         #out = self.sigmoid(out)  
 
-        return out, out.view(x.size(0), 1, self.input_dim)
+        return out, out.view(x.size(0), 1, self.output_dim)
 
 # @weak_module
 class MultiheadAttention(nn.Module):
