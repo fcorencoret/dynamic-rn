@@ -186,8 +186,8 @@ def compute_attention_only(model, ds_per_qtype, bsz=32, samples_per_qtype=None, 
                         if 'gc' in k:
                             qres[k] = torch.cat((qres[k], mid_res[k].view(-1, 64, 64, 256).cpu()))
                         else:
-                            qres[k] = torch.cat((qres[k], mid_res[k].cpu()))
 
+                            qres[k] = torch.cat((qres[k], mid_res[k].cpu()))            
             output[qtype] = qres
 
     return output
@@ -212,6 +212,7 @@ def compute_mid_results(model, ds_per_qtype, with_attention=True, with_identity=
     with torch.no_grad():
         for qtype in tqdm(qtypes):
             qres = make_res_dict()
+            questions, answers = [], []
 
             if samples_per_qtype is not None:
                 ds = Subset(ds_per_qtype[qtype], np.arange(samples_per_qtype))
@@ -245,8 +246,11 @@ def compute_mid_results(model, ds_per_qtype, with_attention=True, with_identity=
                             qres[k] = torch.cat((qres[k], mid_res[k].view(-1, 64, 64, 256).cpu()))
                         else:
                             qres[k] = torch.cat((qres[k], mid_res[k].cpu()))
-
+                questions.append(b['question'].cpu())
+                answers.append(b['answer'].cpu())
             output[qtype] = qres
+            output[f'{qtype}_question'] = questions
+            output[f'{qtype}_answer'] = answers
 
     return output
 
