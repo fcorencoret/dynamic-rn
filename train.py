@@ -288,7 +288,10 @@ def main(args):
         if os.path.isfile(filename):
             print('==> loading checkpoint {}'.format(filename))
             checkpoint = torch.load(filename)
-
+            del checkpoint['module.text.wembedding.weight']
+            del checkpoint['module.rl.f_fc3.weight']
+            del checkpoint['module.rl.f_fc3.bias']
+            print(checkpoint.keys)
             #removes 'module' from dict entries, pytorch bug #3805
             if torch.cuda.device_count() == 1 and any(k.startswith('module.') for k in checkpoint.keys()):
                 checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}

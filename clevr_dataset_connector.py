@@ -20,12 +20,12 @@ class ClevrDataset(Dataset):
         """
 
         if train:
-            quest_json_filename = os.path.join(clevr_dir, 'questions', 'clevr-humans/CLEVR-Humans-train.json')
-            cached_questions = os.path.join('questions', 'clevr-humans/CLEVR_train_questions.pkl')
+            quest_json_filename = os.path.abspath('clevr-humans/CLEVR-Humans-train.json')
+            cached_questions = os.path.abspath('clevr-humans/CLEVR_train_questions.pkl')
             self.img_dir = os.path.join(clevr_dir, 'images', 'train')
         else:
-            quest_json_filename = os.path.join(clevr_dir, 'questions', 'clevr-humans/CLEVR-Humans-val.json')
-            cached_questions = os.path.join('questions', 'clevr-humans/CLEVR_val_questions.pkl')
+            quest_json_filename = os.path.abspath('clevr-humans/CLEVR-Humans-val.json')
+            cached_questions = os.path.abspath('clevr-humans/CLEVR_val_questions.pkl')
             self.img_dir = os.path.join(clevr_dir, 'images', 'val')
 
         if os.path.exists(cached_questions):
