@@ -67,7 +67,7 @@ def build_dictionaries(clevr_dir):
     for q  in tqdm(questions):
         question = tokenize(q['question'])
         for word in question:
-            if quest_count[word] >= 10:
+            if word not in quest_to_ix and quest_count[word] >= 10:
                 quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
 
     unkown_word_index = len(quest_to_ix) + 1
@@ -75,8 +75,12 @@ def build_dictionaries(clevr_dir):
     for q  in tqdm(questions):
         question = tokenize(q['question'])
         for word in question:
-            if quest_count[word] < 10:
+            if word not in quest_to_ix and quest_count[word] < 10:
                 quest_to_ix[word] = unkown_word_index
+
+    print('Size of word dict {}'.format(len(quest_to_ix)))
+
+    print(quest_to_ix)
 
     # json_test_filename = os.path.abspath('clevr-humans/CLEVR-Humans-test.json')
     # #load all words from all training data
