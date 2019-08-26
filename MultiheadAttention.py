@@ -49,7 +49,7 @@ class MultiheadAttention(nn.Module):
             self.bias_k = self.bias_v = None
 
         self.add_zero_attn = add_zero_attn
-        self.norm = nn.InstanceNorm1d(1, affine = True)
+        self.norm = nn.InstanceNorm1d(1, affine = False)
         self._reset_parameters()
 
     def _reset_parameters(self):
