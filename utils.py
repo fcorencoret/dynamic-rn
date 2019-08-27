@@ -15,7 +15,7 @@ classes = {
             'exist':['yes','no']
         }
 
-def build_dictionaries(clevr_dir):
+def build_dictionaries(clevr_dir, dataset):
 
     def compute_class(answer):
         for name,values in classes.items():
@@ -35,70 +35,70 @@ def build_dictionaries(clevr_dir):
     quest_count = {}
     answ_to_ix = {}
     answ_ix_to_class = {}
-    json_train_filename = os.path.abspath('clevr-humans/CLEVR-Humans-train.json')
-    #load all words from all training data
-    questions = []
-    with open(json_train_filename, "r") as f:
-        questions += json.load(f)['questions']
 
-    json_val_filename = os.path.abspath('clevr-humans/CLEVR-Humans-val.json')
-    #load all words from all training data
-    with open(json_val_filename, "r") as f:
-        questions += json.load(f)['questions']
-   
-    for q in tqdm(questions):
-        question = tokenize(q['question'])
-        answer = q['answer']
-        #pdb.set_trace()
-        for word in question:
-            if word not in quest_count:
-                # quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
-                quest_count[word] = 1
-            else:
-                quest_count[word] += 1
-        
-        a = answer.lower()
-        if a not in answ_to_ix:
-                ix = len(answ_to_ix)+1
-                answ_to_ix[a] = ix
-                answ_ix_to_class[ix] = compute_class(a)
+    if dataset == 'clevr':
+        json_train_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
+        with open(json_train_filename, "r") as f:
+            #load all words from all training data
+            questions = json.load(f)['questions']
+            for q in tqdm(questions):
+                question = tokenize(q['question'])
+                answer = q['answer']
+                #pdb.set_trace()
+                for word in question:
+                    if word not in quest_to_ix:
+                        quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
+                
+                a = answer.lower()
+                if a not in answ_to_ix:
+                        ix = len(answ_to_ix)+1
+                        answ_to_ix[a] = ix
+                        answ_ix_to_class[ix] = compute_class(a)
+    elif dataset == 'clevr-humans':
+        json_train_filename = os.path.abspath('clevr-humans/CLEVR-Humans-train.json')
+        #load all words from all training data
+        questions = []
+        with open(json_train_filename, "r") as f:
+            questions += json.load(f)['questions']
+
+        json_val_filename = os.path.abspath('clevr-humans/CLEVR-Humans-val.json')
+        #load all words from all training data
+        with open(json_val_filename, "r") as f:
+            questions += json.load(f)['questions']
+       
+        for q in tqdm(questions):
+            question = tokenize(q['question'])
+            answer = q['answer']
+            #pdb.set_trace()
+            for word in question:
+                if word not in quest_count:
+                    # quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
+                    quest_count[word] = 1
+                else:
+                    quest_count[word] += 1
+            
+            a = answer.lower()
+            if a not in answ_to_ix:
+                    ix = len(answ_to_ix)+1
+                    answ_to_ix[a] = ix
+                    answ_ix_to_class[ix] = compute_class(a)
 
 
-    for q  in tqdm(questions):
-        question = tokenize(q['question'])
-        for word in question:
-            if word not in quest_to_ix and quest_count[word] >= 10:
-                quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
+        for q  in tqdm(questions):
+            question = tokenize(q['question'])
+            for word in question:
+                if word not in quest_to_ix and quest_count[word] >= 10:
+                    quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
 
-    unkown_word_index = len(quest_to_ix) + 1
+        unkown_word_index = len(quest_to_ix) + 1
 
-    for q  in tqdm(questions):
-        question = tokenize(q['question'])
-        for word in question:
-            if word not in quest_to_ix and quest_count[word] < 10:
-                quest_to_ix[word] = unkown_word_index
+        for q  in tqdm(questions):
+            question = tokenize(q['question'])
+            for word in question:
+                if word not in quest_to_ix and quest_count[word] < 10:
+                    quest_to_ix[word] = unkown_word_index
 
     print('Size of word dict {}'.format(len(quest_to_ix)))
-
-    print(quest_to_ix)
-
-    # json_test_filename = os.path.abspath('clevr-humans/CLEVR-Humans-test.json')
-    # #load all words from all training data
-    # with open(json_test_filename, "r") as f:
-    #     questions = json.load(f)['questions']
-    #     for q in tqdm(questions):
-    #         question = tokenize(q['question'])
-    #         answer = q['answer']
-    #         #pdb.set_trace()
-    #         for word in question:
-    #             if word not in quest_to_ix:
-    #                 quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
-            
-    #         a = answer.lower()
-    #         if a not in answ_to_ix:
-    #                 ix = len(answ_to_ix)+1
-    #                 answ_to_ix[a] = ix
-    #                 answ_ix_to_class[ix] = compute_class(a)
     
     ret = (quest_to_ix, answ_to_ix, answ_ix_to_class)    
     with open(cached_dictionaries, 'wb') as f:

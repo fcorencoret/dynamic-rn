@@ -10,7 +10,7 @@ import utils
 import torch
 
 class ClevrDataset(Dataset):
-    def __init__(self, clevr_dir, train, dictionaries, transform=None):
+    def __init__(self, clevr_dir, train, dictionaries, transform=None, dataset='clevr'):
         """
         Args:
             clevr_dir (string): Root directory of CLEVR dataset
@@ -20,12 +20,20 @@ class ClevrDataset(Dataset):
         """
 
         if train:
-            quest_json_filename = os.path.abspath('clevr-humans/CLEVR-Humans-train.json')
-            cached_questions = os.path.abspath('clevr-humans/CLEVR_train_questions.pkl')
+            if dataset  == 'clevr':
+                quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
+                cached_questions = os.path.join('questions', 'CLEVR_train_questions.pkl')
+            elif dataset == 'clevr-humans':
+                quest_json_filename = os.path.abspath('clevr-humans/CLEVR-Humans-train.json')
+                cached_questions = os.path.abspath('clevr-humans/CLEVR_train_questions.pkl')
             self.img_dir = os.path.join(clevr_dir, 'images', 'train')
         else:
-            quest_json_filename = os.path.abspath('clevr-humans/CLEVR-Humans-val.json')
-            cached_questions = os.path.abspath('clevr-humans/CLEVR_val_questions.pkl')
+            if dataset == 'clevr':
+                quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_val_questions.json')
+                cached_questions = os.path.join('questions', 'CLEVR_val_questions.pkl')
+            elif dataset  == 'clevr-humans':
+                quest_json_filename = os.path.abspath('clevr-humans/CLEVR-Humans-val.json')
+                cached_questions = os.path.abspath('clevr-humans/CLEVR_val_questions.pkl')
             self.img_dir = os.path.join(clevr_dir, 'images', 'val')
 
         if os.path.exists(cached_questions):
