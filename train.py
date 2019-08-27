@@ -256,7 +256,7 @@ def main(args):
         torch.cuda.manual_seed(args.seed)
 
     print('Building word dictionaries from all the words in the dataset...')
-    dictionaries = utils.build_dictionaries(clevr_dir, args.dataset)
+    dictionaries = utils.build_dictionaries(args.clevr_dir, args.dataset)
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
@@ -303,8 +303,10 @@ def main(args):
 
             model.load_state_dict(checkpoint, strict=False)
             print('==> loaded checkpoint {}'.format(filename))
-            # start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
-            start_epoch = 1
+            if args.dataset == 'clevr':
+                start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
+            elif args.dataset == 'clevr-humans':
+                start_epoch = 1
 
     if args.conv_transfer_learn:
         if os.path.isfile(args.conv_transfer_learn):
@@ -505,8 +507,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
     if args.comet:
-        experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
-                        project_name="clevr-humans", workspace="adaptive-weights")
+        if args.dataset == 'clevr':
+            experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
+                            project_name="rn", workspace="adaptive-weights")
+        elif args.dataset == 'clevr-humans':
+            experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
+                            project_name="clevr-humans", workspace="adaptive-weights")
         experiment.set_name(args.experiment)
         experiment.log_parameters({
             'batch_size' : args.batch_size,
