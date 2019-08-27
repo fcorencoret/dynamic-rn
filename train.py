@@ -43,7 +43,7 @@ def train(data, model, optimizer, epoch, args):
         optimizer.zero_grad()
         output, l1_reg = model(img, qst)
         pred = output.data.max(1)[1]
-        loss = F.nll_loss(output, label) + args.l1_lambd * l1_reg.mean().item()
+        loss = F.nll_loss(output, label) + args.l1_lambd * l1_reg.mean()
         loss.backward()
 
         # compute global accuracy
@@ -110,42 +110,42 @@ def test(data, model, epoch, dictionaries, args):
 
     avg_loss = 0.0
     progress_bar = tqdm(data)
-    # with torch.no_grad():
-    for batch_idx, sample_batched in enumerate(progress_bar):
-        img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
-            
-        output, l1_reg = model(img, qst)
-        pred = output.data.max(1)[1]
+    with torch.no_grad():
+        for batch_idx, sample_batched in enumerate(progress_bar):
+            img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
+                
+            output, l1_reg = model(img, qst)
+            pred = output.data.max(1)[1]
 
-        loss = F.nll_loss(output, label) + args.l1_lambd * l1_reg.mean().item()
+            loss = F.nll_loss(output, label) + args.l1_lambd * l1_reg.mean()
 
-        # compute per-class accuracy
-        pred_class = [dictionaries[2][o.item()+1] for o in pred]
-        real_class = [dictionaries[2][o.item()+1] for o in label.data]
-        for idx,rc in enumerate(real_class):
-            class_corrects[rc] += (pred[idx] == label.data[idx]).item()
-            class_n_samples[rc] += 1
+            # compute per-class accuracy
+            pred_class = [dictionaries[2][o.item()+1] for o in pred]
+            real_class = [dictionaries[2][o.item()+1] for o in label.data]
+            for idx,rc in enumerate(real_class):
+                class_corrects[rc] += (pred[idx] == label.data[idx]).item()
+                class_n_samples[rc] += 1
 
-        for pc, rc in zip(pred_class,real_class):
-            class_invalids[rc] += (pc != rc)
+            for pc, rc in zip(pred_class,real_class):
+                class_invalids[rc] += (pc != rc)
 
-        for p,l in zip(pred, label.data):
-            confusion_matrix_target.append(sorted_classes.index(l))
-            confusion_matrix_pred.append(sorted_classes.index(p))
-            
-        # compute global accuracy
-        corrects += (pred == label.data).sum().item()
-        assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
-        invalids = sum(class_invalids.values())
-        n_samples += len(label)
-        assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
-            
-        avg_loss += loss.item()
+            for p,l in zip(pred, label.data):
+                confusion_matrix_target.append(sorted_classes.index(l))
+                confusion_matrix_pred.append(sorted_classes.index(p))
+                
+            # compute global accuracy
+            corrects += (pred == label.data).sum().item()
+            assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
+            invalids = sum(class_invalids.values())
+            n_samples += len(label)
+            assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
+                
+            avg_loss += loss.item()
 
-        if batch_idx % args.log_interval == 0:
-            accuracy = corrects / n_samples
-            invalids_perc = invalids / n_samples
-            progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
+            if batch_idx % args.log_interval == 0:
+                accuracy = corrects / n_samples
+                invalids_perc = invalids / n_samples
+                progress_bar.set_postfix(dict(acc='{:.2%}'.format(accuracy), inv='{:.2%}'.format(invalids_perc)))
     
     avg_loss /= len(data)
     invalids_perc = invalids / n_samples      
@@ -294,6 +294,8 @@ def main(args):
                 del checkpoint['module.text.wembedding.weight']
                 del checkpoint['module.rl.f_fc3.weight']
                 del checkpoint['module.rl.f_fc3.bias']
+                del checkpoint['module.rl.mha_fc3.fc2.weight']
+                del checkpoint['module.rl.mha_fc3.fc2.bias']
 
             #removes 'module' from dict entries, pytorch bug #3805
             if torch.cuda.device_count() == 1 and any(k.startswith('module.') for k in checkpoint.keys()):
