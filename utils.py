@@ -25,7 +25,10 @@ def build_dictionaries(clevr_dir, dataset):
         raise ValueError('Answer {} does not belong to a known class'.format(answer))
         
         
-    cached_dictionaries = os.path.join('clevr-humans', 'CLEVR_built_dictionaries.pkl')
+    if dataset == 'clevr':
+        cached_dictionaries = os.path.join('questions', 'CLEVR_built_dictionaries.pkl')
+    elif dataset == 'clevr-humans':
+        cached_dictionaries = os.path.join('clevr-humans', 'CLEVR_built_dictionaries.pkl')
     if os.path.exists(cached_dictionaries):
         print('==> using cached dictionaries: {}'.format(cached_dictionaries))
         with open(cached_dictionaries, 'rb') as f:
