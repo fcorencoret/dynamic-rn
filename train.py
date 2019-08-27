@@ -202,8 +202,8 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True, sub_set 
         test_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                           transforms.ToTensor()])
                                           
-        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms)
-        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms)
+        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms, args.dataset)
+        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms, args.dataset)
         
     else:
         clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries)
@@ -256,7 +256,7 @@ def main(args):
         torch.cuda.manual_seed(args.seed)
 
     print('Building word dictionaries from all the words in the dataset...')
-    dictionaries = utils.build_dictionaries(args.clevr_dir)
+    dictionaries = utils.build_dictionaries(args.clevr_dir, args.dataset)
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
@@ -289,6 +289,12 @@ def main(args):
             print('==> loading checkpoint {}'.format(filename))
             checkpoint = torch.load(filename)
 
+            # If working on clevr humans dimensions of last layers don't match
+            if args.dataset == 'clevr-humans' and not args.test:
+                del checkpoint['module.text.wembedding.weight']
+                del checkpoint['module.rl.f_fc3.weight']
+                del checkpoint['module.rl.f_fc3.bias']
+
             #removes 'module' from dict entries, pytorch bug #3805
             if torch.cuda.device_count() == 1 and any(k.startswith('module.') for k in checkpoint.keys()):
                 checkpoint = {k.replace('module.',''): v for k,v in checkpoint.items()}
@@ -297,7 +303,10 @@ def main(args):
 
             model.load_state_dict(checkpoint, strict=False)
             print('==> loaded checkpoint {}'.format(filename))
-            start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
+            if args.dataset == 'clevr':
+                start_epoch = int(re.match(r'.*epoch_(\d+).pth', args.resume).groups()[0]) + 1
+            elif args.dataset == 'clevr-humans':
+                start_epoch = 1
 
     if args.conv_transfer_learn:
         if os.path.isfile(args.conv_transfer_learn):
@@ -494,11 +503,16 @@ if __name__ == '__main__':
                         help='Log to comet')
     parser.add_argument('--resume_comet', type=str, default='',
                         help='Log to comet')
+    parser.add_argument('--dataset', type=str, default='clevr')
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
     if args.comet:
-        experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
-                        project_name="rn", workspace="adaptive-weights")
+        if args.dataset == 'clevr':
+            experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
+                            project_name="rn", workspace="adaptive-weights")
+        elif args.dataset == 'clevr-humans':
+            experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
+                            project_name="clevr-humans", workspace="adaptive-weights")
         experiment.set_name(args.experiment)
         experiment.log_parameters({
             'batch_size' : args.batch_size,
