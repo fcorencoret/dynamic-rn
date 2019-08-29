@@ -20,13 +20,13 @@ class SEAttend(nn.Module):
             nn.Linear(out_dim, squeeze_dim),
             nn.ReLU(),
             nn.Linear(squeeze_dim, out_dim),
-            nn.Sigmoid(),
+            nn.ReLU(),
         )
         
         self.attend = MultiheadAttention(
             in_dim,
             num_attn_heads,
-            dropout=0.1,
+            # dropout=0.1,
         )
     
     def forward(self, qst, weights):
