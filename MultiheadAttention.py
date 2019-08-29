@@ -6,6 +6,48 @@ from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 import torch.nn as nn
 
+def squeeze(weights):
+    return weights.mean(dim=1)
+
+class SEAttend(nn.Module):
+    def __init__(self, in_dim=256, out_dim=256, squeeze_dim=16, num_attn_heads=1):
+        super().__init__()
+        
+        self.in_dim = in_dim # Cantidad neuronas capa anterior
+        self.out_dim = out_dim # Cantidad de neuronas capa siguiente (mascara sobre estas)
+        
+        self.excite = nn.Sequential(
+            nn.Linear(out_dim, squeeze_dim),
+            nn.ReLU(),
+            nn.Linear(squeeze_dim, out_dim),
+            nn.Sigmoid(),
+        )
+        
+        self.attend = MultiheadAttention(
+            in_dim,
+            num_attn_heads,
+            dropout=0.1,
+        )
+    
+    def forward(self, qst, weights):
+        # qst: [target_length, bsz, emb_dim]
+        # weights: [sequence_length, emb_dim]
+        bsz = qst.size(1)
+                
+        scale = self.squeeze(weights) # scale: [out_dim (256)]
+        scale = self.excite(scale.unsqueeze(0)) # scale: [1, out_dim (256)]
+        weights = weights * scale.t() # weights: [out_dim, in_dim]
+        weights = weights.unsqueeze(1).expand(self.out_dim, bsz, self.in_dim) # weights: [out_dim, bsz, in_dim]
+        
+        _, attn_output_weights = self.attend(qst, weights, weights)
+                
+        # Retorno None para mantener el formato
+        return None, attn_output_weights
+    
+    @staticmethod
+    def squeeze(weights):
+        return squeeze(weights)
+
 # @weak_module
 class MultiheadAttention(nn.Module):
     r"""Allows the model to jointly attend to information
@@ -185,7 +227,7 @@ class MultiheadAttention(nn.Module):
             )
             attn_output_weights = attn_output_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
-        attn_output_weights = self.norm(attn_output_weights)
+        # attn_output_weights = self.norm(attn_output_weights)
         attn_output_weights = torch.sigmoid(attn_output_weights.float())
         attn_output_weights = F.dropout(attn_output_weights, p=self.dropout, training=self.training)
         
