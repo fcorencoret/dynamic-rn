@@ -231,6 +231,8 @@ def main(args):
         hyp['dropout'] = args.dropout
     if args.question_injection >= 0:
         hyp['question_injection_position'] = args.question_injection
+    if args.question_injection == -2:
+        hyp['question_injection_position'] = -1
 
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
@@ -494,7 +496,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='config.json',
                         help='configuration file for hyperparameters loading')
     parser.add_argument('--question-injection', type=int, default=-1, 
-                        help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value)')
+                        help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value), -2 to delete question from G layers')
     parser.add_argument('--subset', type=float, default=1.0,
                         help='percentage of the dataset')
     parser.add_argument('--l1-lambd', type=float, default=1.0,
@@ -504,6 +506,8 @@ if __name__ == '__main__':
     parser.add_argument('--resume_comet', type=str, default='',
                         help='Log to comet')
     parser.add_argument('--dataset', type=str, default='clevr')
+
+
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
     if args.comet:
