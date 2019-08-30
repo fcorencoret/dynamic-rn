@@ -27,6 +27,8 @@ def build_dictionaries(clevr_dir, dataset):
         
     if dataset == 'clevr':
         cached_dictionaries = os.path.join('questions', 'CLEVR_built_dictionaries.pkl')
+    if dataset.startswith('cogent'):
+        cached_dictionaries = os.path.join('questions', 'CoGenT_built_dictionaries.pkl')
     elif dataset == 'clevr-humans':
         cached_dictionaries = os.path.join('clevr-humans', 'CLEVR_built_dictionaries.pkl')
     if os.path.exists(cached_dictionaries):
@@ -41,6 +43,24 @@ def build_dictionaries(clevr_dir, dataset):
 
     if dataset == 'clevr':
         json_train_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
+        with open(json_train_filename, "r") as f:
+            #load all words from all training data
+            questions = json.load(f)['questions']
+            for q in tqdm(questions):
+                question = tokenize(q['question'])
+                answer = q['answer']
+                #pdb.set_trace()
+                for word in question:
+                    if word not in quest_to_ix:
+                        quest_to_ix[word] = len(quest_to_ix)+1 #one based indexing; zero is reserved for padding
+                
+                a = answer.lower()
+                if a not in answ_to_ix:
+                        ix = len(answ_to_ix)+1
+                        answ_to_ix[a] = ix
+                        answ_ix_to_class[ix] = compute_class(a)
+    if dataset.startswith('cogent'):
+        json_train_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_trainA_questions.json')
         with open(json_train_filename, "r") as f:
             #load all words from all training data
             questions = json.load(f)['questions']

@@ -24,6 +24,7 @@ import math
 import random
 from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
 from model import RN
+from model_vanilla import RN as VanillaRN
 
 import pdb
 
@@ -117,7 +118,7 @@ def test(data, model, epoch, dictionaries, args):
     with torch.no_grad():
         for batch_idx, sample_batched in enumerate(progress_bar):
             img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
-                
+
             output, l1_reg = model(img, qst)
             pred = output.data.max(1)[1]
 
@@ -196,7 +197,8 @@ def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, s
                                        shuffle=False, collate_fn=utils.collate_samples_state_description)
     return clevr_train_loader, clevr_test_loader
 
-def initialize_dataset(clevr_dir, dictionaries, state_description=True, sub_set = 0.0005):
+def initialize_dataset(clevr_dir, dictionaries, state_description=True, sub_set = 0.0005,
+            dataset='clevr', use_images=True):
     if not state_description:
         train_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                            transforms.Pad(8),
@@ -206,8 +208,8 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True, sub_set 
         test_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                           transforms.ToTensor()])
                                           
-        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms, args.dataset)
-        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms, args.dataset)
+        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms, dataset, use_images)
+        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms, dataset, use_images)
         
     else:
         clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries)
@@ -235,6 +237,8 @@ def main(args):
         hyp['dropout'] = args.dropout
     if args.question_injection >= 0:
         hyp['question_injection_position'] = args.question_injection
+    if args.question_injection == -2:
+        hyp['question_injection_position'] = -1
 
     print('Loaded hyperparameters from configuration {}, model: {}: {}'.format(args.config, args.model, hyp))
 
@@ -264,14 +268,20 @@ def main(args):
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
-    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'], args.subset)
+    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(
+        args.clevr_dir, dictionaries, hyp['state_description'], args.subset,
+        args.dataset, args.use_images,
+        )
     print('CLEVR dataset initialized!')
 
     # Build the model
     args.qdict_size = len(dictionaries[0])
     args.adict_size = len(dictionaries[1])
 
-    model = RN(args, hyp)
+    if args.use_vanilla:
+        model = VanillaRN(args, hyp)
+    else:
+        model = RN(args, hyp)
 
     if args.freeze_RN:
         for name, param in model.named_parameters():
@@ -400,7 +410,7 @@ def main(args):
                     experiment.log_metrics({
                         'accuracy' : accuracy,
                         'epoch' : epoch,
-                        'l1_reg': l1_reg,
+                        'l1_reg' : l1_reg,
                     })
 
                 with experiment.test():
@@ -499,7 +509,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='config.json',
                         help='configuration file for hyperparameters loading')
     parser.add_argument('--question-injection', type=int, default=-1, 
-                        help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value)')
+                        help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value), -2 to delete question from G layers')
     parser.add_argument('--subset', type=float, default=1.0,
                         help='percentage of the dataset')
     parser.add_argument('--l1-lambd', type=float, default=1.0,
@@ -509,6 +519,9 @@ if __name__ == '__main__':
     parser.add_argument('--resume_comet', type=str, default='',
                         help='Log to comet')
     parser.add_argument('--dataset', type=str, default='clevr')
+    parser.add_argument('--use-images', type=bool, default=1)
+    parser.add_argument('--use-vanilla', type=bool, default=0)
+
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
     if args.comet:
@@ -518,12 +531,19 @@ if __name__ == '__main__':
         elif args.dataset == 'clevr-humans':
             experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
                             project_name="clevr-humans", workspace="adaptive-weights")
+
+        elif args.dataset.startswith('cogent'):
+            experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
+                            project_name="cogent", workspace="adaptive-weights")
+
         experiment.set_name(args.experiment)
         experiment.log_parameters({
             'batch_size' : args.batch_size,
             'test_batch_size' : args.test_batch_size,
             'subset' : args.subset,
-            'l1-lambd' : args.l1_lambd
+            'l1-lambd' : args.l1_lambd,
+            'use_images': args.use_images,
+            'dataset': args.dataset,
             })
     if args.resume_comet:
         print(f'Resumed comet with key {args.resume_comet}')
@@ -533,6 +553,8 @@ if __name__ == '__main__':
             'batch_size' : args.batch_size,
             'test_batch_size' : args.test_batch_size,
             'subset' : args.subset,
-            'l1-lambd' : args.l1_lambd
+            'l1-lambd' : args.l1_lambd,
+            'use_images': args.use_images,
+            'dataset': args.dataset,
             })
     main(args)

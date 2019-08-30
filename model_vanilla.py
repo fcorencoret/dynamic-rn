@@ -174,13 +174,14 @@ class RelationalLayer(RelationalLayerBase):
         x_f = self.f_fc3(x_f)
         x_f = self.identity_fc3(x_f)
 
-        return F.log_softmax(x_f, dim=1)
+        return F.log_softmax(x_f, dim=1), torch.tensor(0, dtype=torch.float32, device=x_f.device)
 
 class RN(nn.Module):
     def __init__(self, args, hyp, extraction=False):
         super().__init__()
         self.coord_tensor = None
         self.on_gpu = False
+        self.use_images = getattr(args, 'use_images', True)
         
         # CNN
         self.conv = ConvInputModel()
@@ -200,7 +201,7 @@ class RN(nn.Module):
             print('Supposing original DeepMind model')
 
     def forward(self, img, qst_idxs):
-        if self.state_desc:
+        if self.state_desc or self.use_images is False:
             x = img # (B x 12 x 8)
         else:
             x = self.conv(img)  # (B x 24 x 8 x 8)
