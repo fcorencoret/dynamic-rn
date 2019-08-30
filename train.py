@@ -32,6 +32,7 @@ def train(data, model, optimizer, epoch, args):
     model.train()
 
     avg_loss = 0.0
+    total_l1_reg = 0.0
     n_batches = 0
     corrects = 0
     n_samples = 0
@@ -42,15 +43,18 @@ def train(data, model, optimizer, epoch, args):
         # forward and backward pass
         optimizer.zero_grad()
         output, l1_reg = model(img, qst)
+        l1_reg = l1_reg.mean() * args.l1_lambd
         pred = output.data.max(1)[1]
-        loss = F.nll_loss(output, label) + args.l1_lambd * l1_reg.mean()
+        loss = F.nll_loss(output, label) + l1_reg
         loss.backward()
 
         # compute global accuracy
         corrects += (pred == label.data).sum()
+        total_l1_reg += l1_reg.item()
         # assert corrects == sum(class_corrects.values()), 'Number of correct answers assertion error!'
         # invalids = sum(class_invalids.values())
         n_samples += len(label)
+        avg_l1_reg = total_l1_reg / n_samples
         accuracy = corrects.item() / n_samples
         # assert n_samples == sum(class_n_samples.values()), 'Number of total answers assertion error!'
 
@@ -61,7 +65,7 @@ def train(data, model, optimizer, epoch, args):
         optimizer.step()
 
         # Show progress
-        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.item()), acc='{:.2%}'.format(accuracy)))
+        progress_bar.set_postfix(dict(loss='{:.4}'.format(loss.item()), acc='{:.2%}'.format(accuracy), l1_reg=avg_l1_reg))
         avg_loss += loss.item()
         n_batches += 1
 
@@ -75,7 +79,7 @@ def train(data, model, optimizer, epoch, args):
             avg_loss = 0.0
             n_batches = 0
     torch.cuda.empty_cache()
-    return accuracy
+    return accuracy, avg_l1_reg
 
 
 def test(data, model, epoch, dictionaries, args):
@@ -394,10 +398,11 @@ def main(args):
                 with experiment.train():
                     # TRAIN
                     progress_bar.set_description('TRAIN')
-                    accuracy = train(clevr_train_loader, model, optimizer, epoch, args)
+                    accuracy, l1_reg = train(clevr_train_loader, model, optimizer, epoch, args)
                     experiment.log_metrics({
                         'accuracy' : accuracy,
                         'epoch' : epoch,
+                        'l1_reg' : l1_reg,
                     })
 
                 with experiment.test():
