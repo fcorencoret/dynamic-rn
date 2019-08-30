@@ -174,7 +174,7 @@ class RelationalLayer(RelationalLayerBase):
         x_f = self.f_fc3(x_f)
         x_f = self.identity_fc3(x_f)
 
-        return F.log_softmax(x_f, dim=1), torch.tensor(0, dtype=torch.float32)
+        return F.log_softmax(x_f, dim=1), torch.tensor(0, dtype=torch.float32, device=x_f.device)
 
 class RN(nn.Module):
     def __init__(self, args, hyp, extraction=False):

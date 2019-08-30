@@ -24,6 +24,7 @@ import math
 import random
 from clevr_dataset_connector import ClevrDataset, ClevrDatasetStateDescription
 from model import RN
+from model_vanilla import RN as VanillaRN
 
 import pdb
 
@@ -117,7 +118,7 @@ def test(data, model, epoch, dictionaries, args):
     with torch.no_grad():
         for batch_idx, sample_batched in enumerate(progress_bar):
             img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
-                
+
             output, l1_reg = model(img, qst)
             pred = output.data.max(1)[1]
 
@@ -277,7 +278,10 @@ def main(args):
     args.qdict_size = len(dictionaries[0])
     args.adict_size = len(dictionaries[1])
 
-    model = RN(args, hyp)
+    if args.use_vanilla:
+        model = VanillaRN(args, hyp)
+    else:
+        model = RN(args, hyp)
 
     if args.freeze_RN:
         for name, param in model.named_parameters():
@@ -516,6 +520,7 @@ if __name__ == '__main__':
                         help='Log to comet')
     parser.add_argument('--dataset', type=str, default='clevr')
     parser.add_argument('--use-images', type=bool, default=1)
+    parser.add_argument('--use-vanilla', type=bool, default=0)
 
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
