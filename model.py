@@ -11,9 +11,9 @@ import pdb
 MULTIHEADATTENTION_HEADS = 1
 
 
-class WeightActivation(object):
+class MetricActivation(object):
     def __init__(self, threshold_mask = 0.3):
-        super(WeightActivation, self).__init__()
+        super(MetricActivation, self).__init__()
 
         self.threshold_mask = threshold_mask
 
@@ -119,7 +119,7 @@ class RelationalLayer(RelationalLayerBase):
         self.quest_inject_position = hyp["question_injection_position"]
         self.in_size = in_size
 
-        self.wa = WeightActivation()
+        self.wa = MetricActivation()
 
 	    #create all g layers
         self.g_layers = []
@@ -177,6 +177,8 @@ class RelationalLayer(RelationalLayerBase):
         # reshape for passing through network
         x_ = x_full.view(b * d**2, self.in_size)
 
+        results_wa = {}
+
         #create g and inject the question at the position pointed by quest_inject_position.
         for idx, (g_layer, mha_layer, g_layer_size, identity) in enumerate(zip(self.g_layers, self.mha_layers, self.g_layers_size, self.identity_layers)):
             if idx==self.quest_inject_position:
@@ -202,6 +204,7 @@ class RelationalLayer(RelationalLayerBase):
                 # Apply attn_output_weights to x_
 
                 #print(self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights))
+                results_wa['fc_'+str(idx)+'_both'], results_wa['fc_'+str(idx)+'_turn_off'], results_wa['fc_'+str(idx)+'_already_turn_off'] = self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights)
 
                 x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
                 x_ = x_.view(b * (d ** 2), g_layer_size)
@@ -223,6 +226,8 @@ class RelationalLayer(RelationalLayerBase):
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
 
         #print(self.wa.getDiff(x_f, attn_output_weights.squeeze(1)))
+        results_wa['fc_1_both'], results_wa['fc_1_turn_off'], results_wa['fc_1_already_turn_off'] = self.wa.getDiff(x_f, attn_output_weights.squeeze(1))
+
 
         x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc1(x_f)
@@ -235,6 +240,7 @@ class RelationalLayer(RelationalLayerBase):
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
 
         #print(self.wa.getDiff(x_f, attn_output_weights.squeeze(1)))
+        results_wa['fc_2_both'], results_wa['fc_2_turn_off'], results_wa['fc_2_already_turn_off'] = self.wa.getDiff(x_f, attn_output_weights.squeeze(1))
 
         x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc2(x_f)
@@ -245,10 +251,11 @@ class RelationalLayer(RelationalLayerBase):
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
 
         #print(self.wa.getDiff(x_f, attn_output_weights.squeeze(1)))
+        results_wa['fc_3_both'], results_wa['fc_3_turn_off'], results_wa['fc_3_already_turn_off'] = self.wa.getDiff(x_f, attn_output_weights.squeeze(1))
 
         x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc3(x_f)
-        return F.log_softmax(x_f, dim=1), l1_reg 
+        return F.log_softmax(x_f, dim=1), l1_reg, results_wa
 
 class RN(nn.Module):
     def __init__(self, args, hyp, extraction=False):

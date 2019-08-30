@@ -31,6 +31,8 @@ import pdb
 def train(data, model, optimizer, epoch, args):
     model.train()
 
+    total_act_metric = {}
+    avg_act_metric = {}
     avg_loss = 0.0
     total_l1_reg = 0.0
     n_batches = 0
@@ -42,11 +44,18 @@ def train(data, model, optimizer, epoch, args):
 
         # forward and backward pass
         optimizer.zero_grad()
-        output, l1_reg = model(img, qst)
+        output, l1_reg, act_metric = model(img, qst)
         l1_reg = l1_reg.mean() * args.l1_lambd
         pred = output.data.max(1)[1]
         loss = F.nll_loss(output, label) + l1_reg
         loss.backward()
+
+        for elem in act_metric.keys():
+            if elem in total_act_metric:
+                total_act_metric[elem] += act_metric[elem]
+            else
+                total_act_metric[elem] = act_metric[elem]
+            avg_act_metric[elem] = total_act_metric[elem]/(batch_idx + 1)
 
         # compute global accuracy
         corrects += (pred == label.data).sum()
@@ -79,7 +88,7 @@ def train(data, model, optimizer, epoch, args):
             avg_loss = 0.0
             n_batches = 0
     torch.cuda.empty_cache()
-    return accuracy, avg_l1_reg
+    return accuracy, avg_l1_reg, avg_act_metric
 
 
 def test(data, model, epoch, dictionaries, args):
@@ -118,7 +127,7 @@ def test(data, model, epoch, dictionaries, args):
         for batch_idx, sample_batched in enumerate(progress_bar):
             img, qst, label = utils.load_tensor_data(sample_batched, args.cuda, args.invert_questions, volatile=True)
                 
-            output, l1_reg = model(img, qst)
+            output, l1_reg, act_metric = model(img, qst)
             pred = output.data.max(1)[1]
 
             loss = F.nll_loss(output, label) + args.l1_lambd * l1_reg.mean()
@@ -398,12 +407,11 @@ def main(args):
                 with experiment.train():
                     # TRAIN
                     progress_bar.set_description('TRAIN')
-                    accuracy, l1_reg = train(clevr_train_loader, model, optimizer, epoch, args)
-                    experiment.log_metrics({
-                        'accuracy' : accuracy,
-                        'epoch' : epoch,
-                        'l1_reg' : l1_reg,
-                    })
+                    accuracy, l1_reg, act_metric = train(clevr_train_loader, model, optimizer, epoch, args)
+                    act_metric['accuracy'] = accuracy
+                    act_metric['epoch'] = epoch
+                    act_metric['l1_reg'] = l1_reg
+                    experiment.log_metrics(act_metric)
 
                 with experiment.test():
                     # TEST
