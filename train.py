@@ -53,7 +53,7 @@ def train(data, model, optimizer, epoch, args):
         for elem in act_metric.keys():
             if elem in total_act_metric:
                 total_act_metric[elem] += act_metric[elem]
-            else
+            else:
                 total_act_metric[elem] = act_metric[elem]
             avg_act_metric[elem] = total_act_metric[elem]/(batch_idx + 1)
 
