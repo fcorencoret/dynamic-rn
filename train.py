@@ -196,7 +196,8 @@ def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, s
                                        shuffle=False, collate_fn=utils.collate_samples_state_description)
     return clevr_train_loader, clevr_test_loader
 
-def initialize_dataset(clevr_dir, dictionaries, state_description=True, sub_set = 0.0005):
+def initialize_dataset(clevr_dir, dictionaries, state_description=True, sub_set = 0.0005,
+            dataset='clevr', use_images=True):
     if not state_description:
         train_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                            transforms.Pad(8),
@@ -206,8 +207,8 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True, sub_set 
         test_transforms = transforms.Compose([transforms.Resize((128, 128)),
                                           transforms.ToTensor()])
                                           
-        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms, args.dataset)
-        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms, args.dataset)
+        clevr_dataset_train = ClevrDataset(clevr_dir, True, dictionaries, train_transforms, dataset, use_images)
+        clevr_dataset_test = ClevrDataset(clevr_dir, False, dictionaries, test_transforms, dataset, use_images)
         
     else:
         clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries)
@@ -266,7 +267,10 @@ def main(args):
     print('Word dictionary completed!')
 
     print('Initializing CLEVR dataset...')
-    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(args.clevr_dir, dictionaries, hyp['state_description'], args.subset)
+    clevr_dataset_train, clevr_dataset_test  = initialize_dataset(
+        args.clevr_dir, dictionaries, hyp['state_description'], args.subset,
+        args.dataset, args.use_images,
+        )
     print('CLEVR dataset initialized!')
 
     # Build the model
@@ -511,7 +515,7 @@ if __name__ == '__main__':
     parser.add_argument('--resume_comet', type=str, default='',
                         help='Log to comet')
     parser.add_argument('--dataset', type=str, default='clevr')
-
+    parser.add_argument('--use-images', type=bool, default=1)
 
     args = parser.parse_args()
     args.invert_questions = not args.no_invert_questions
@@ -522,12 +526,19 @@ if __name__ == '__main__':
         elif args.dataset == 'clevr-humans':
             experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
                             project_name="clevr-humans", workspace="adaptive-weights")
+
+        elif args.dataset.startswith('cogent'):
+            experiment = Experiment(api_key="VD0MYyhx0BQcWhxWvLbcalX51",
+                            project_name="cogent", workspace="adaptive-weights")
+
         experiment.set_name(args.experiment)
         experiment.log_parameters({
             'batch_size' : args.batch_size,
             'test_batch_size' : args.test_batch_size,
             'subset' : args.subset,
-            'l1-lambd' : args.l1_lambd
+            'l1-lambd' : args.l1_lambd,
+            'use_images': args.use_images,
+            'dataset': args.dataset,
             })
     if args.resume_comet:
         print(f'Resumed comet with key {args.resume_comet}')
@@ -537,6 +548,8 @@ if __name__ == '__main__':
             'batch_size' : args.batch_size,
             'test_batch_size' : args.test_batch_size,
             'subset' : args.subset,
-            'l1-lambd' : args.l1_lambd
+            'l1-lambd' : args.l1_lambd,
+            'use_images': args.use_images,
+            'dataset': args.dataset,
             })
     main(args)

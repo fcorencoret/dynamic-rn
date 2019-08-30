@@ -60,7 +60,7 @@ class ClevrDataset(Dataset):
 
             if dataset == 'cogentA':
                 self.img_dir = os.path.join(clevr_dir, 'images', 'valA')
-            if dataset == 'cogentB':
+            elif dataset == 'cogentB':
                 self.img_dir = os.path.join(clevr_dir, 'images', 'valB')
             else:
                 self.img_dir = os.path.join(clevr_dir, 'images', 'val')
@@ -85,7 +85,7 @@ class ClevrDataset(Dataset):
 
             if dataset == 'cogentA':
                 self.img_dir = os.path.join(clevr_dir, 'images', 'testA')
-            if dataset == 'cogentB':
+            elif dataset == 'cogentB':
                 self.img_dir = os.path.join(clevr_dir, 'images', 'testB')
             else:
                 self.img_dir = os.path.join(clevr_dir, 'images', 'test')
