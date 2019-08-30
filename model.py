@@ -10,6 +10,29 @@ import pdb
 
 MULTIHEADATTENTION_HEADS = 1
 
+
+class WeightActivation(object):
+    def __init__(self, threshold_mask = 0.3):
+        super(WeightActivation, self).__init__()
+
+        self.threshold_mask = threshold_mask
+
+    def getDiff(self, x, mask):
+        m = (mask > self.threshold_mask).float().sum()
+        a = (x > 0).float().sum()
+        b = ((mask > self.threshold_mask).float()*(x > 0).float()).sum()
+
+        # a - b = Las neuronas que apagamos
+        # m - b = Venian apagadas y las mascara no las vio
+
+        return b / x.nelement(), (a - b) / x.nelement(), (m - b) / x.nelement()
+
+    def changeMask(self, mask, t = 'ones'):
+        if t == 'ones':
+            return torch.ones_like(mask)
+        else:
+            return mask[:,torch.randperm(mask.size(-1))]
+
 class ConvInputModel(nn.Module):
     def __init__(self):
         super(ConvInputModel, self).__init__()
@@ -38,7 +61,6 @@ class ConvInputModel(nn.Module):
         x = self.batchNorm4(x)
         x = F.relu(x)
         return x
-
 
 class QuestionEmbedModel(nn.Module):
     def __init__(self, in_size, embed=32, hidden=128):
@@ -90,13 +112,14 @@ class RelationalLayerBase(nn.Module):
         self.on_gpu = True
         super().cuda(device)
     
-
 class RelationalLayer(RelationalLayerBase):
     def __init__(self, in_size, out_size, qst_size, hyp, extraction=False):
         super().__init__(in_size, out_size, qst_size, hyp)
 
         self.quest_inject_position = hyp["question_injection_position"]
         self.in_size = in_size
+
+        self.wa = WeightActivation()
 
 	    #create all g layers
         self.g_layers = []
@@ -177,6 +200,9 @@ class RelationalLayer(RelationalLayerBase):
                 l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
                 attn_output_weights = attn_output_weights.repeat(1, d**2, 1)
                 # Apply attn_output_weights to x_
+
+                #print(self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights))
+
                 x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
                 x_ = x_.view(b * (d ** 2), g_layer_size)
             x_ = identity(x_)
@@ -195,6 +221,9 @@ class RelationalLayer(RelationalLayerBase):
         weights = torch.unsqueeze(self.f_fc1.weight, 0).repeat(b, 1, 1).transpose(1, 0)
         _, attn_output_weights = self.mha_fc1(query, weights, weights)
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
+
+        #print(self.wa.getDiff(x_f, attn_output_weights.squeeze(1)))
+
         x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc1(x_f)
         # f_fc2
@@ -204,6 +233,9 @@ class RelationalLayer(RelationalLayerBase):
         weights = torch.unsqueeze(self.f_fc2.weight, 0).repeat(b, 1, 1).transpose(1, 0)
         _, attn_output_weights = self.mha_fc2(query, weights, weights)
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
+
+        #print(self.wa.getDiff(x_f, attn_output_weights.squeeze(1)))
+
         x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc2(x_f)
         # f_fc3
@@ -211,6 +243,9 @@ class RelationalLayer(RelationalLayerBase):
         weights = torch.unsqueeze(self.f_fc3.weight, 0).repeat(b, 1, 1).transpose(1, 0)
         _, attn_output_weights = self.mha_fc3(query, weights, weights)
         l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
+
+        #print(self.wa.getDiff(x_f, attn_output_weights.squeeze(1)))
+
         x_f = x_f * attn_output_weights.squeeze(1)
         x_f = self.identity_fc3(x_f)
         return F.log_softmax(x_f, dim=1), l1_reg 
@@ -276,3 +311,88 @@ class RN(nn.Module):
         self.rl.cuda(device)
         super(RN, self).cuda(device)
         
+if __name__ == '__main__':
+    # Training settings
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(description='PyTorch Relational-Network CLEVR')
+    parser.add_argument('--batch-size', type=int, default=640, metavar='N',
+                        help='input batch size for training (default: 640)')
+    parser.add_argument('--test-batch-size', type=int, default=640,
+                        help='input batch size for training (default: 640)')
+    parser.add_argument('--epochs', type=int, default=500, metavar='N',
+                        help='number of epochs to train (default: 500)')
+    parser.add_argument('--lr', type=float, default=0.000005, metavar='LR',
+                        help='learning rate (default: 0.000005)')
+    parser.add_argument('--clip-norm', type=int, default=50,
+                        help='max norm for gradients; set to 0 to disable gradient clipping (default: 10)')
+    parser.add_argument('--no-cuda', action='store_true', default=False,
+                        help='disables CUDA training')
+    parser.add_argument('--seed', type=int, default=42, metavar='S',
+                        help='random seed (default: 42)')
+    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+                        help='how many batches to wait before logging training status')
+    parser.add_argument('--resume', type=str,
+                        help='resume from model stored')
+    parser.add_argument('--resume_optimizer', type=str,
+                        help='resume from optimizer stored')
+    parser.add_argument('--freeze_RN', type=bool, default=False,
+                        help='freeze RN weights')
+    parser.add_argument('--clevr-dir', type=str, default='.',
+                        help='base directory of CLEVR dataset')
+    parser.add_argument('--model', type=str, default='original-fp',
+                        help='which model is used to train the network')
+    parser.add_argument('--experiment', type=str, default='pruebas',
+                        help='experiment name')
+    parser.add_argument('--no-invert-questions', action='store_true', default=False,
+                        help='invert the question word indexes for LSTM processing')
+    parser.add_argument('--test', action='store_true', default=False,
+                        help='perform only a single test. To use with --resume')
+    parser.add_argument('--conv-transfer-learn', type=str,
+                    help='use convolutional layer from another training')
+    parser.add_argument('--lr-max', type=float, default=0.0005,
+                        help='max learning rate')
+    parser.add_argument('--lr-gamma', type=float, default=2, 
+                        help='increasing rate for the learning rate. 1 to keep LR constant.')
+    parser.add_argument('--lr-step', type=int, default=20,
+                        help='number of epochs before lr update')
+    parser.add_argument('--bs-max', type=int, default=-1,
+                        help='max batch-size')
+    parser.add_argument('--bs-gamma', type=float, default=1, 
+                        help='increasing rate for the batch size. 1 to keep batch-size constant.')
+    parser.add_argument('--bs-step', type=int, default=20, 
+                        help='number of epochs before batch-size update')
+    parser.add_argument('--dropout', type=float, default=-1,
+                        help='dropout rate. -1 to use value from configuration')
+    parser.add_argument('--config', type=str, default='config.json',
+                        help='configuration file for hyperparameters loading')
+    parser.add_argument('--question-injection', type=int, default=-1, 
+                        help='At which stage of g function the question should be inserted (0 to insert at the beginning, as specified in DeepMind model, -1 to use configuration value), -2 to delete question from G layers')
+    parser.add_argument('--subset', type=float, default=1.0,
+                        help='percentage of the dataset')
+    parser.add_argument('--l1-lambd', type=float, default=1.0,
+                        help='L1 lambd for loss')
+    parser.add_argument('--comet', type=int, default=1,
+                        help='Log to comet')
+    parser.add_argument('--resume_comet', type=str, default='',
+                        help='Log to comet')
+    parser.add_argument('--dataset', type=str, default='clevr')
+
+
+    args = parser.parse_args()
+    args.invert_questions = not args.no_invert_questions
+    args.qdict_size = 1000
+    args.adict_size = 400
+
+    with open(args.config) as config_file: 
+        hyp = json.load(config_file)['hyperparams'][args.model]
+
+    img = torch.FloatTensor(16, 3, 128, 128)
+    qst = torch.LongTensor(16, 32).random_(0, 10)
+
+
+    model = RN(args, hyp)
+
+    for i in range(10):
+        model(img, qst)
