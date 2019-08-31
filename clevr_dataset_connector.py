@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 from PIL import Image
+import h5py
 
 from collections import Counter
 from torch.utils.data import Dataset
@@ -10,7 +11,8 @@ import utils
 import torch
 
 class ClevrDataset(Dataset):
-    def __init__(self, clevr_dir, train, dictionaries, transform=None, dataset='clevr'):
+    def __init__(self, clevr_dir, train, dictionaries, transform=None, dataset='clevr',
+    use_images=True, test=False, features_folder='features_rn'):
         """
         Args:
             clevr_dir (string): Root directory of CLEVR dataset
@@ -23,18 +25,73 @@ class ClevrDataset(Dataset):
             if dataset  == 'clevr':
                 quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_train_questions.json')
                 cached_questions = os.path.join('questions', 'CLEVR_train_questions.pkl')
+                features_filename = os.path.join(clevr_dir, features_folder, 'train_features.hdf5')
             elif dataset == 'clevr-humans':
                 quest_json_filename = os.path.abspath('clevr-humans/CLEVR-Humans-train.json')
                 cached_questions = os.path.abspath('clevr-humans/CLEVR_train_questions.pkl')
-            self.img_dir = os.path.join(clevr_dir, 'images', 'train')
-        else:
+                features_filename = os.path.join(clevr_dir, features_folder, 'train_features.hdf5')
+            elif dataset == 'cogentA':
+                quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_trainA_questions.json')
+                cached_questions = os.path.join('questions', 'CLEVR_trainA_questions.pkl')
+                features_filename = os.path.join(clevr_dir, features_folder, 'trainA_features.hdf5')
+                
+            if dataset == 'cogentA':
+                self.img_dir = os.path.join(clevr_dir, 'images', 'trainA')
+            else:
+                self.img_dir = os.path.join(clevr_dir, 'images', 'train')
+
+        elif not test: # Val
             if dataset == 'clevr':
                 quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_val_questions.json')
                 cached_questions = os.path.join('questions', 'CLEVR_val_questions.pkl')
+                features_filename = os.path.join(clevr_dir, features_folder, 'val_features.hdf5')
             elif dataset  == 'clevr-humans':
                 quest_json_filename = os.path.abspath('clevr-humans/CLEVR-Humans-val.json')
                 cached_questions = os.path.abspath('clevr-humans/CLEVR_val_questions.pkl')
-            self.img_dir = os.path.join(clevr_dir, 'images', 'val')
+                features_filename = os.path.join(clevr_dir, features_folder, 'val_features.hdf5')
+            elif dataset == 'cogentA':
+                quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_valA_questions.json')
+                cached_questions = os.path.join('questions', 'CLEVR_valA_questions.pkl')
+                features_filename = os.path.join(clevr_dir, features_folder, 'valA_features.hdf5')
+            elif dataset == 'cogentB':
+                quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_valB_questions.json')
+                cached_questions = os.path.join('questions', 'CLEVR_valB_questions.pkl')
+                features_filename = os.path.join(clevr_dir, features_folder, 'valB_features.hdf5')
+
+            if dataset == 'cogentA':
+                self.img_dir = os.path.join(clevr_dir, 'images', 'valA')
+            elif dataset == 'cogentB':
+                self.img_dir = os.path.join(clevr_dir, 'images', 'valB')
+            else:
+                self.img_dir = os.path.join(clevr_dir, 'images', 'val')
+
+        elif test:
+            if dataset == 'clevr':
+                quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_test_questions.json')
+                cached_questions = os.path.join('questions', 'CLEVR_test_questions.pkl')
+                features_filename = os.path.join(clevr_dir, features_folder, 'test_features.hdf5')
+            elif dataset  == 'clevr-humans':
+                quest_json_filename = os.path.abspath('clevr-humans/CLEVR-Humans-test.json')
+                cached_questions = os.path.abspath('clevr-humans/CLEVR_test_questions.pkl')
+                features_filename = os.path.join(clevr_dir, features_folder, 'test_features.hdf5')
+            elif dataset == 'cogentA':
+                quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_testA_questions.json')
+                cached_questions = os.path.join('questions', 'CLEVR_testA_questions.pkl')
+                features_filename = os.path.join(clevr_dir, features_folder, 'testA_features.hdf5')
+            elif dataset == 'cogentB':
+                quest_json_filename = os.path.join(clevr_dir, 'questions', 'CLEVR_testB_questions.json')
+                cached_questions = os.path.join('questions', 'CLEVR_testB_questions.pkl')
+                features_filename = os.path.join(clevr_dir, features_folder, 'testB_features.hdf5')
+
+            if dataset == 'cogentA':
+                self.img_dir = os.path.join(clevr_dir, 'images', 'testA')
+            elif dataset == 'cogentB':
+                self.img_dir = os.path.join(clevr_dir, 'images', 'testB')
+            else:
+                self.img_dir = os.path.join(clevr_dir, 'images', 'test')
+
+        else:
+            raise Exception('Neither train, val or test selected')
 
         if os.path.exists(cached_questions):
             print('==> using cached questions: {}'.format(cached_questions))
@@ -46,9 +103,13 @@ class ClevrDataset(Dataset):
             with open(cached_questions, 'wb') as f:
                 pickle.dump(self.questions, f)
 
+        if not use_images:
+            self.features = h5py.File(features_filename, 'r')['data']
+
         self.clevr_dir = clevr_dir
         self.transform = transform
         self.dictionaries = dictionaries
+        self.use_images = use_images
     
     def answer_weights(self):
         n = float(len(self.questions))
@@ -61,8 +122,11 @@ class ClevrDataset(Dataset):
 
     def __getitem__(self, idx):
         current_question = self.questions[idx]
-        img_filename = os.path.join(self.img_dir, current_question['image_filename'])
-        image = Image.open(img_filename).convert('RGB')
+        if self.use_images:
+            img_filename = os.path.join(self.img_dir, current_question['image_filename'])
+            image = Image.open(img_filename).convert('RGB')
+        else:
+            image = torch.from_numpy(self.features[current_question['image_index']])
 
         question = utils.to_dictionary_indexes(self.dictionaries[0], current_question['question'])
         answer = utils.to_dictionary_indexes(self.dictionaries[1], current_question['answer'])
@@ -75,7 +139,7 @@ class ClevrDataset(Dataset):
         
         sample = {'image': image, 'question': question, 'answer': answer}
 
-        if self.transform:
+        if self.use_images and self.transform:
             sample['image'] = self.transform(sample['image'])
         
         return sample

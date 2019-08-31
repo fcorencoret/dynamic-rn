@@ -262,7 +262,8 @@ class RN(nn.Module):
         super(RN, self).__init__()
         self.coord_tensor = None
         self.on_gpu = False
-        
+        self.use_images = getattr(args, 'use_images', True)
+
         # CNN
         self.conv = ConvInputModel()
         self.state_desc = hyp['state_description']            
@@ -281,7 +282,7 @@ class RN(nn.Module):
             print('Supposing original DeepMind model')
 
     def forward(self, img, qst_idxs):
-        if self.state_desc:
+        if self.state_desc or self.use_images is False:
             x = img # (B x 12 x 8)
         else:
             x = self.conv(img)  # (B x 24 x 8 x 8)
