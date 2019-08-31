@@ -110,6 +110,8 @@ def test(data, model, epoch, dictionaries, args):
     corrects = 0.0
     invalids = 0.0
     n_samples = 0
+    total_act_metric = {}
+    avg_act_metric = {}
 
     inverted_answ_dict = {v: k for k,v in dictionaries[1].items()}
     sorted_classes = sorted(dictionaries[2].items(), key=lambda x: hash(x[1]) if x[1]!='number' else int(inverted_answ_dict[x[0]]))
@@ -132,6 +134,14 @@ def test(data, model, epoch, dictionaries, args):
             pred = output.data.max(1)[1]
 
             loss = F.nll_loss(output, label) + args.l1_lambd * l1_reg.mean()
+
+            # mask metrics
+            for elem in act_metric.keys():
+                if elem in total_act_metric:
+                    total_act_metric[elem] += act_metric[elem]
+                else:
+                    total_act_metric[elem] = act_metric[elem]
+                avg_act_metric[elem] = total_act_metric[elem]/(batch_idx + 1)
 
             # compute per-class accuracy
             pred_class = [dictionaries[2][o.item()+1] for o in pred]
@@ -174,6 +184,18 @@ def test(data, model, epoch, dictionaries, args):
             invalid = class_invalids[v] / class_n_samples[v]
         print('{} -- acc: {:.2%} ({}/{}); invalid: {:.2%} ({}/{})'.format(v,accuracy,class_corrects[v],class_n_samples[v],invalid,class_invalids[v],class_n_samples[v]))
 
+    print('Mask metrics')
+    avg_act_metric['both_avg'], avg_act_metric['already_turn_off_avg'], avg_act_metric['turn_off_avg'] = 0, 0, 0
+    for k,v in avg_act_metric.items():
+        if 'both' in k:
+            avg_act_metric['both_avg'] += (v / 6)
+        if 'already' in k:
+            avg_act_metric['already_turn_off_avg'] += (v / 6)
+        else:
+            avg_act_metric['turn_off_avg'] += (v / 6)
+    for k,v in avg_act_metric.items():
+        print('{} : {:.2%}'.format(k, v))
+
     dump_object = {
         'class_corrects':class_corrects,
         'class_invalids':class_invalids,
@@ -185,7 +207,7 @@ def test(data, model, epoch, dictionaries, args):
         'global_invalids':invalids_perc
     }
     torch.cuda.empty_cache()
-    return avg_loss, dump_object
+    return avg_loss, dump_object, avg_act_metric
 
 def reload_loaders(clevr_dataset_train, clevr_dataset_test, train_bs, test_bs, state_description = False):
     if not state_description:
@@ -224,13 +246,13 @@ def initialize_dataset(clevr_dir, dictionaries, state_description=True, sub_set 
         clevr_dataset_train = ClevrDatasetStateDescription(clevr_dir, True, dictionaries)
         clevr_dataset_test = ClevrDatasetStateDescription(clevr_dir, False, dictionaries)
 
-    #if sub_set < 1:
-    #    random.seed(10)
-    #    sub_indx = random.sample(range(0, len(clevr_dataset_train)), int(len(clevr_dataset_train)*sub_set))
-    #    clevr_dataset_train = torch.utils.data.Subset(clevr_dataset_train, sub_indx)
+    if sub_set < 1:
+       random.seed(10)
+       sub_indx = random.sample(range(0, len(clevr_dataset_train)), int(len(clevr_dataset_train)*sub_set))
+       clevr_dataset_train = torch.utils.data.Subset(clevr_dataset_train, sub_indx)
 
-    #    sub_indx = random.sample(range(0, len(clevr_dataset_test)), int(len(clevr_dataset_test)*sub_set))
-    #    clevr_dataset_test = torch.utils.data.Subset(clevr_dataset_test, sub_indx)
+       sub_indx = random.sample(range(0, len(clevr_dataset_test)), int(len(clevr_dataset_test)*sub_set))
+       clevr_dataset_test = torch.utils.data.Subset(clevr_dataset_test, sub_indx)
 
     return clevr_dataset_train, clevr_dataset_test 
         
@@ -424,7 +446,7 @@ def main(args):
                 with experiment.test():
                     # TEST
                     progress_bar.set_description('TEST')
-                    test_loss, results = test(clevr_test_loader, model, epoch, dictionaries, args)
+                    test_loss, results, act_metric = test(clevr_test_loader, model, epoch, dictionaries, args)
                     for v in results['class_total_samples'].keys():
                         accuracy = 0
                         invalid = 0
@@ -434,12 +456,11 @@ def main(args):
                         experiment.log_metrics({
                             f'{v}_accuracy' : accuracy,
                             f'{v}_invalid' : invalid})
-                    experiment.log_metrics({
-                        'accuracy' : results['global_accuracy'],
-                        'invalids' : results['global_invalids'],
-                        'loss' : test_loss,
-                        'epoch' : epoch,
-                    })
+                    act_metric['accuracy'] = results['global_accuracy']
+                    act_metric['epoch'] = epoch
+                    act_metric['loss'] = test_loss
+                    act_metric['invalids'] = results['global_invalids']
+                    experiment.log_metrics(act_metric)
 
                 if test_loss < best_loss:
                     print('Saving weights for epoch {}'.format(epoch))
