@@ -204,7 +204,7 @@ class RelationalLayer(RelationalLayerBase):
                 # Apply attn_output_weights to x_
 
                 #print(self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights))
-                results_wa['fc_'+str(idx)+'_both'], results_wa['fc_'+str(idx)+'_turn_off'], results_wa['fc_'+str(idx)+'_already_turn_off'] = self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights)
+                results_wa['g_'+str(idx)+'_both'], results_wa['g_'+str(idx)+'_turn_off'], results_wa['g_'+str(idx)+'_already_turn_off'] = self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights)
 
                 x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
                 x_ = x_.view(b * (d ** 2), g_layer_size)
