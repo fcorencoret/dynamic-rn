@@ -135,7 +135,6 @@ class RelationalLayer(RelationalLayerBase):
             if idx==self.quest_inject_position:
                 #create the h layer. Now, for better code organization, it is part of the g layers pool. 
                 l = nn.Linear(in_s+qst_size, out_s)
-                mha = MultiheadAttention(in_s+qst_size, MULTIHEADATTENTION_HEADS)
             else:
                 #create a standard g layer.
                 l = nn.Linear(in_s, out_s)
@@ -196,18 +195,19 @@ class RelationalLayer(RelationalLayerBase):
             else:
                 x_ = g_layer(x_)
                 x_ = F.relu(x_)
-                # Pass through multiheadattention layer
-                weights = torch.unsqueeze(g_layer.weight, 0).repeat(b, 1, 1).transpose(1, 0)
-                _, attn_output_weights = mha_layer(query, weights, weights)
-                l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
-                attn_output_weights = attn_output_weights.repeat(1, d**2, 1)
-                # Apply attn_output_weights to x_
+                if idx > 0:
+                    # Pass through multiheadattention layer
+                    weights = torch.unsqueeze(g_layer.weight, 0).repeat(b, 1, 1).transpose(1, 0)
+                    _, attn_output_weights = mha_layer(query, weights, weights)
+                    l1_reg += (attn_output_weights.abs().sum() / (attn_output_weights.size(0) * attn_output_weights.size(2)))
+                    attn_output_weights = attn_output_weights.repeat(1, d**2, 1)
+                    # Apply attn_output_weights to x_
 
-                #print(self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights))
-                results_wa['g_'+str(idx)+'_both'], results_wa['g_'+str(idx)+'_turn_off'], results_wa['g_'+str(idx)+'_already_turn_off'] = self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights)
+                    #print(self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights))
+                    results_wa['g_'+str(idx)+'_both'], results_wa['g_'+str(idx)+'_turn_off'], results_wa['g_'+str(idx)+'_already_turn_off'] = self.wa.getDiff(x_.view(b, d**2, g_layer_size), attn_output_weights)
 
-                x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
-                x_ = x_.view(b * (d ** 2), g_layer_size)
+                    x_ = x_.view(b, d**2, g_layer_size) * attn_output_weights
+                    x_ = x_.view(b * (d ** 2), g_layer_size)
             x_ = identity(x_)
 
         if self.extraction:
